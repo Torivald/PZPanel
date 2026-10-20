@@ -1,0 +1,21 @@
+# systemd-служба PZ Panel. Панель сама запускает сервер (autoStartServer=true)
+# и при остановке службы/перезагрузке сохраняет мир и выключает его (stopServerOnExit=true).
+# Ставится скриптом:  sudo bash install_panel.sh --service
+[Unit]
+Description=PZ Panel + Project Zomboid Dedicated Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pzuser
+WorkingDirectory=/home/pzuser/pzserver/PZPanel
+ExecStart=/home/pzuser/pzserver/PZPanel/pzpanel.sh
+Restart=on-failure
+RestartSec=15
+# SIGTERM — только панели; она сама делает save + quit серверу и ждёт до 170 с
+KillMode=mixed
+TimeoutStopSec=200
+
+[Install]
+WantedBy=multi-user.target

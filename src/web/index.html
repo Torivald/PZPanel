@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="pzp-token" content="%%TOKEN%%">
+<meta name="pzp-login" content="%%LOGIN%%">
+<title>PZ Panel</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="login" class="login hidden">
+  <form id="loginForm" class="card">
+    <h2>PZ Panel</h2>
+    <input type="password" id="loginPass" placeholder="Пароль панели" autocomplete="current-password">
+    <button class="btn primary" type="submit">Войти</button>
+    <div id="loginErr" class="err"></div>
+  </form>
+</div>
+
+<div id="app" class="app">
+  <aside class="side">
+    <div class="brand"><span class="logo">☣</span><div><b id="brandName">PZ Panel</b><small id="brandSub">сервер</small></div></div>
+    <nav id="nav">
+      <a data-tab="overview" class="active">Обзор и консоль</a>
+      <a data-tab="worlds">Миры</a>
+      <a data-tab="map">Карта</a>
+      <a data-tab="players">Игроки</a>
+      <a data-tab="mods">Моды</a>
+      <a data-tab="ini">Настройки сервера</a>
+      <a data-tab="sandbox">Песочница</a>
+      <a data-tab="files">Файлы</a>
+      <a data-tab="zb">ZombieBuddy</a>
+      <a data-tab="backups">Бэкапы</a>
+      <a data-tab="settings">Панель</a>
+    </nav>
+    <div class="sidestatus"><span id="stateDot" class="dot"></span><span id="stateText">…</span></div>
+  </aside>
+
+  <main>
+    <div id="banners"></div>
+
+    <!-- OVERVIEW -->
+    <section id="tab-overview" class="tab">
+      <div class="row wrap gap">
+        <div class="card grow">
+          <div class="row between">
+            <h3>Сервер <span id="srvName"></span></h3>
+            <span id="stateBadge" class="badge">—</span>
+          </div>
+          <div class="kv" id="srvInfo"></div>
+          <div class="row wrap gap mt">
+            <button class="btn primary" id="btnStart">▶ Запустить</button>
+            <button class="btn" id="btnRestart">⟳ Перезапустить</button>
+            <select id="restartWarn" title="Предупредить игроков">
+              <option value="0">сразу</option><option value="1">через 1 мин</option>
+              <option value="5" selected>через 5 мин</option><option value="10">через 10 мин</option>
+            </select>
+            <button class="btn" id="btnStop">■ Остановить</button>
+            <button class="btn" id="btnSave">💾 Сохранить мир</button>
+            <button class="btn danger" id="btnKill" title="Убить процесс без сохранения">✖ Убить</button>
+          </div>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="card loadcard">
+        <div class="row between"><h3>Нагрузка сервера <small class="muted">последние 30 мин</small></h3><span class="muted small" id="loadSys"></span></div>
+        <div class="loadgrid">
+          <div class="loadbox"><div class="row between"><span class="muted">ЦПУ</span><b id="loadCpu">—</b></div><canvas id="cpuChart" height="90"></canvas><div class="muted small" id="loadCpuSub"></div></div>
+          <div class="loadbox"><div class="row between"><span class="muted">ОЗУ</span><b id="loadRam">—</b></div><canvas id="ramChart" height="90"></canvas><div class="muted small" id="loadRamSub"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row between">
+          <h3>Консоль <small id="consoleMode" class="muted"></small></h3>
+          <label class="muted small"><input type="checkbox" id="autoscroll" checked> автопрокрутка</label>
+        </div>
+        <div id="zbPrompt" class="prompt hidden">
+          <span id="zbPromptText">Сервер ждёт ответа</span>
+          <button class="btn primary" data-answer="y">Да (y)</button>
+          <button class="btn" data-answer="n">Нет (n)</button>
+        </div>
+        <pre id="console" class="console"></pre>
+        <form id="cmdForm" class="row gap">
+          <input id="cmd" class="grow mono" placeholder="Команда сервера: players, save, servermsg &quot;текст&quot;, kickuser &quot;ник&quot;, help…" autocomplete="off">
+          <button class="btn primary">Отправить</button>
+        </form>
+        <div class="row wrap gap mt quick">
+          <button class="btn sm" data-cmd="players">players</button>
+          <button class="btn sm" data-cmd="checkModsNeedUpdate">checkModsNeedUpdate</button>
+          <button class="btn sm" data-cmd="showoptions">showoptions</button>
+          <button class="btn sm" data-cmd="help">help</button>
+          <button class="btn sm" id="btnBroadcast">📢 Сообщение всем</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAP -->
+    <section id="tab-map" class="tab hidden">
+      <div class="mapwrap">
+        <canvas id="mapCanvas"></canvas>
+        <div class="maptools card">
+          <input id="mapSearch" class="w100" placeholder="Поиск: игрок, город, улица, аптека, оружейный…" autocomplete="off">
+          <div id="mapResults" class="maplist results"></div>
+          <div class="row gap mt small"><span class="muted">Подложка</span>
+            <select id="mBase" class="grow"><option value="game">Карта игры</option><option value="top">Вид сверху</option></select></div>
+          <div class="row gap mt small hidden" id="mFloorWrap"><span class="muted">Этаж</span><select id="mFloor" class="grow"></select></div>
+          <div id="mapDataStatus" class="muted small mt"></div>
+          <details open><summary>Игроки</summary>
+            <div class="row gap wrap small">
+              <label><input type="checkbox" id="mOnline" checked> онлайн</label>
+              <label><input type="checkbox" id="mOffline" checked> оффлайн</label>
+              <label><input type="checkbox" id="mDead"> мёртвые</label>
+              <label><input type="checkbox" id="mLabels" checked> имена</label>
+            </div>
+            <div id="mapList" class="maplist"></div>
+            <button class="btn sm mt" id="btnMapSave" title="Сервер сохранит мир и позиции игроков">💾 Обновить позиции (save)</button>
+            <div class="muted small" id="mapSaved"></div>
+          </details>
+          <details open><summary>Слои</summary><div id="mLayers" class="checks"></div></details>
+          <details open><summary>Точки интереса <small class="muted" id="poiCount"></small></summary>
+            <div class="row gap small"><a href="#" id="poiAll">все</a><a href="#" id="poiNone">ничего</a></div>
+            <div id="mCats" class="checks"></div>
+          </details>
+          <div class="row gap mt">
+            <input id="gotoXY" class="grow mono" placeholder="x, y — перейти">
+            <button class="btn sm" id="btnGoto">→</button>
+            <button class="btn sm" id="btnShare" title="Скопировать ссылку на это место">🔗</button>
+          </div>
+          <div class="muted small mt" id="mapCoords">—</div>
+        </div>
+        <div id="mapCard" class="mapcard card hidden"></div>
+        <div id="mapTip" class="maptip hidden"></div>
+        <div id="mapErr" class="maperr hidden"></div>
+      </div>
+    </section>
+
+    <!-- PLAYERS -->
+    <section id="tab-players" class="tab hidden">
+      <div class="card">
+        <div class="row between wrap gap">
+          <h3>Игроки</h3>
+          <div class="row gap"><input id="plFilter" placeholder="Поиск…"><button class="btn sm" id="plRefresh">Обновить</button></div>
+        </div>
+        <div id="plNote" class="muted small"></div>
+        <div class="tablewrap"><table id="plTable" class="table"></table></div>
+      </div>
+    </section>
+
+    <!-- MODS -->
+    <section id="tab-mods" class="tab hidden">
+      <div class="card sticky">
+        <div class="row between wrap gap">
+          <h3>Моды <small class="muted" id="modsCount"></small></h3>
+          <div class="row gap wrap">
+            <input id="modFilter" placeholder="Фильтр по названию / ID">
+            <label class="small"><input type="checkbox" id="syncClient" checked> записать порядок и в клиент (mods/default.txt)</label>
+            <button class="btn" id="modsReload">Отменить изменения</button>
+            <button class="btn primary" id="modsSave">Сохранить</button>
+          </div>
+        </div>
+        <div id="modsDirty" class="muted small"></div>
+      </div>
+      <div class="cols">
+        <div class="card col2">
+          <h4>Включённые — порядок загрузки сверху вниз <small class="muted">(перетаскивайте)</small></h4>
+          <ol id="modsEnabled" class="modlist"></ol>
+        </div>
+        <div class="col1">
+          <div class="card">
+            <h4>Добавить из Мастерской</h4>
+            <div class="row gap">
+              <input id="wsInput" class="grow" placeholder="Ссылка, ID предмета или коллекции, или поиск">
+            </div>
+            <div class="row gap mt wrap">
+              <button class="btn sm primary" id="wsById">По ссылке/ID</button>
+              <button class="btn sm" id="wsCollection">Импорт коллекции</button>
+              <button class="btn sm" id="wsSearch">Поиск</button>
+            </div>
+            <div id="wsResults" class="wsresults"></div>
+          </div>
+          <div class="card">
+            <h4>Скачаны, но выключены</h4>
+            <div id="modsAvailable" class="availlist"></div>
+          </div>
+          <div class="card">
+            <h4>Предметы Мастерской (WorkshopItems)</h4>
+            <div class="muted small">Сервер скачивает их при запуске; игроки — при входе.</div>
+            <div id="wsItems" class="availlist"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INI -->
+    <section id="tab-ini" class="tab hidden">
+      <div class="card sticky">
+        <div class="row between wrap gap">
+          <h3>Настройки сервера <small class="muted" id="iniPath"></small></h3>
+          <div class="row gap"><input id="iniFilter" placeholder="Поиск параметра…"><button class="btn primary" id="iniSave">Сохранить</button></div>
+        </div>
+        <div class="muted small">Mods и WorkshopItems редактируются на вкладке «Моды». Изменения применяются после перезапуска сервера.</div>
+      </div>
+      <div class="card"><div id="iniForm" class="form"></div></div>
+    </section>
+
+    <!-- SANDBOX -->
+    <section id="tab-sandbox" class="tab hidden">
+      <div class="card sticky">
+        <div class="row between wrap gap">
+          <h3>Песочница <small class="muted" id="sbPath"></small></h3>
+          <div class="row gap"><input id="sbFilter" placeholder="Поиск: parkour, zombie, loot…"><select id="sbGroup"></select><button class="btn primary" id="sbSave">Сохранить</button></div>
+        </div>
+        <div class="muted small">Сервер читает файл при запуске. Опции новых модов появляются после первого запуска сервера с этими модами.</div>
+      </div>
+      <div class="card"><div id="sbForm" class="form"></div></div>
+    </section>
+
+    <!-- FILES -->
+    <section id="tab-files" class="tab hidden">
+      <div class="card">
+        <div class="row between wrap gap">
+          <div class="row gap">
+            <select id="fileSel">
+              <option value="ini">Конфиг сервера (.ini)</option>
+              <option value="sandbox">Песочница (SandboxVars.lua)</option>
+              <option value="spawnregions">Регионы появления</option>
+              <option value="spawnpoints">Точки появления</option>
+              <option value="clientmods">Моды клиента (mods/default.txt)</option>
+              <option value="modoptions">Настройки модов клиента (ModOptions.ini)</option>
+              <option value="startscript">Скрипт запуска сервера</option>
+            </select>
+            <small class="muted" id="filePath"></small>
+          </div>
+          <div class="row gap"><button class="btn" id="fileReload">Перечитать</button><button class="btn primary" id="fileSave">Сохранить</button></div>
+        </div>
+        <textarea id="fileText" class="editor mono" spellcheck="false"></textarea>
+      </div>
+    </section>
+
+    <!-- ZB -->
+    <section id="tab-zb" class="tab hidden">
+      <div class="card">
+        <h3>ZombieBuddy — одобрения Java-модов</h3>
+        <div class="muted small" id="zbPath"></div>
+        <div class="muted small">Общий файл для игры и сервера на этом ПК. После обновления мода его хэш меняется, и ZombieBuddy спросит снова.</div>
+        <div class="tablewrap"><table id="zbTable" class="table"></table></div>
+      </div>
+    </section>
+
+    <!-- WORLDS -->
+    <section id="tab-worlds" class="tab hidden">
+      <div class="card">
+        <div class="row between wrap gap">
+          <h3>Миры сервера</h3>
+          <div class="row wrap gap">
+            <label class="muted small" title="Перед сбросом, удалением и восстановлением панель делает zip-бэкап мира"><input type="checkbox" id="wBackup" checked> бэкап перед сбросом и удалением</label>
+            <button class="btn" id="wReload">Обновить</button>
+            <button class="btn primary" id="wNewBtn">+ Новый мир</button>
+          </div>
+        </div>
+        <div class="muted small" id="wInfo"></div>
+        <div id="wWarn"></div>
+        <div id="wProgress" class="small"></div>
+        <div id="wNew" class="wnew hidden">
+          <h4>Новый мир</h4>
+          <div class="form">
+            <div class="k">Имя<small>латиница, цифры, _ и -; это -servername и имена файлов</small></div>
+            <div><input id="wName" placeholder="Например, Banda2" maxlength="48"></div>
+            <div class="k">Что взять<small></small></div>
+            <div><select id="wMode">
+              <option value="settings">настройки другого мира, мир и аккаунты с нуля</option>
+              <option value="full">полную копию другого мира (сохранение и аккаунты тоже)</option>
+              <option value="default">ничего: сервер создаст настройки по умолчанию</option>
+            </select></div>
+            <div class="k" id="wFromK">Из мира<small>ini (моды, порты, пароли), песочница, точки появления</small></div>
+            <div id="wFromV"><select id="wFrom"></select></div>
+            <div class="k">После создания<small></small></div>
+            <div><label><input type="checkbox" id="wActivate"> сразу сделать активным (сервер должен быть остановлен)</label></div>
+          </div>
+          <div class="row gap mt"><button class="btn primary" id="wCreate">Создать</button><button class="btn" id="wCancel">Отмена</button><span class="muted small" id="wHint"></span></div>
+        </div>
+        <div class="tablewrap mt"><table id="wTable" class="table"></table></div>
+      </div>
+      <div class="card" id="wOrphCard">
+        <h3>Сохранения без настроек</h3>
+        <div class="muted small">Папки в Saves/Multiplayer, для которых нет &lt;имя&gt;.ini: переименованные вручную старые миры и сохранения с чужих серверов, куда вы заходили как игрок (имя вида IP_порт_…). Старый мир можно снова сделать миром — панель добавит ему настройки другого мира.</div>
+        <div class="tablewrap"><table id="wOrph" class="table"></table></div>
+      </div>
+    </section>
+
+    <!-- BACKUPS -->
+    <section id="tab-backups" class="tab hidden">
+      <div class="card">
+        <div class="row between wrap gap">
+          <h3>Бэкапы мира</h3>
+          <button class="btn primary" id="bkCreate">Создать бэкап</button>
+        </div>
+        <div class="muted small" id="bkInfo"></div>
+        <div id="bkProgress" class="small"></div>
+        <div class="tablewrap"><table id="bkTable" class="table"></table></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="tab hidden">
+      <div class="card">
+        <div class="row between"><h3>Настройки панели</h3><button class="btn primary" id="setSave">Сохранить</button></div>
+        <div class="muted small" id="setPath"></div>
+        <div id="setForm" class="form"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="/app.js"></script>
+</body>
+</html>

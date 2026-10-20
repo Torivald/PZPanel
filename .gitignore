@@ -1,0 +1,11 @@
+# сборка
+src/build/
+src/pzpanel.jar
+*.jar
+out/
+# локальные настройки и данные панели
+panel.properties
+file_backups/
+steamcmd/
+map/
+*.zip
