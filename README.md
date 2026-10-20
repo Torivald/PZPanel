@@ -5,7 +5,7 @@
 Работает на Windows и Linux (на Linux — в том числе как служба systemd).
 
 Подробная инструкция: [docs/PANEL.md](docs/PANEL.md) и руководство в Steam —
-[PZ Panel](https://steamcommunity.com/sharedfiles/filedetails/?id=3820094636).
+[PZ Panel](https://steamcommunity.com/sharedfiles/filedetails/?id=3823445245).
 
 ## Что умеет
 
