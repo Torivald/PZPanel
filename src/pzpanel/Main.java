@@ -40,7 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.1";
+   static final String VERSION = "1.2";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
