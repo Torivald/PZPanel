@@ -5,7 +5,7 @@
 
 В архиве сервера: папка `panel/` — `pzpanel.jar`, `pzpanel.sh` (запуск), `pzpanel.service` (systemd); скрипт `scripts/05_install_panel.sh`.
 На Windows-ПК хоста панель лежит в папке сервера, `PZPanel\` (запуск — `PZPanel.bat`).
-Исходники — `panel/src/` (сборка: `build.sh` / `build.bat`). Эта же инструкция в Steam: [руководство PZ Panel](https://steamcommunity.com/sharedfiles/filedetails/?id=3820094636).
+Исходники — `panel/src/` (сборка: `build.sh` / `build.bat`). Эта же инструкция в Steam: [руководство PZ Panel](https://steamcommunity.com/sharedfiles/filedetails/?id=3823445245).
 
 ## Что умеет
 
