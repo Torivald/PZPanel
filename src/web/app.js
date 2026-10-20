@@ -698,7 +698,7 @@ function renderMods() {
     const issues = orig ? orig.issues : (m.installed ? [] : ['новый — файлы появятся после запуска сервера']);
     const hide = f && !(id.toLowerCase().includes(f) || String(m.name).toLowerCase().includes(f));
     return `<li draggable="true" data-i="${i}" class="${hide ? 'hidden' : ''}"><span class="num">${i + 1}</span><span class="handle">⋮⋮</span>
-      <div class="info"><div class="name">${esc(m.name)}${m.java ? '<span class="tag java">Java</span>' : ''}${m.local ? '<span class="tag" title="Локальная копия в Zomboid/mods — не обновляется из Steam">локальный</span>' : ''}${!m.installed ? '<span class="tag">не скачан</span>' : ''}</div>
+      <div class="info"><div class="name">${esc(m.name)}${m.java ? '<span class="tag java">Java</span>' : ''}${m.local ? '<span class="tag" title="Локальная копия в Zomboid/mods — не обновляется из Steam">' + (m.workshopId ? '📌 закреплён' : 'локальный') + '</span>' : ''}${!m.installed ? '<span class="tag">не скачан</span>' : ''}</div>
       <div class="meta">${esc(id)}${m.workshopId ? ' · <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=' + esc(m.workshopId) + '" target="_blank" rel="noopener">' + esc(m.workshopId) + '</a>' : ''}${m.versionMax ? ' · до ' + esc(m.versionMax) : ''}${m.require && m.require.length ? ' · требует: ' + esc(m.require.join(', ')) : ''}</div>
       ${issues.map(x => `<div class="issue">⚠ ${esc(x)}</div>`).join('')}</div>
       <div class="actions"><button class="btn sm" data-up="${i}" title="Выше">↑</button><button class="btn sm" data-down="${i}" title="Ниже">↓</button><button class="btn sm" data-off="${i}" title="Выключить">✕</button></div></li>`;
@@ -722,7 +722,20 @@ function renderMods() {
 function renderWsItems() {
   const used = new Set(modsOrder.map(x => { const m = modIndex()[x.replace(/^\\+/, '')]; return m && m.workshopId; }));
   const info = Object.fromEntries((modsState.workshopItems || []).map(i => [i.id, i]));
-  $('#wsItems').innerHTML = wsItems.map(id => { const i = info[id] || {}; return `<div class="it"><div>${esc(i.title || id)}<br><small class="muted"><a href="https://steamcommunity.com/sharedfiles/filedetails/?id=${esc(id)}" target="_blank" rel="noopener">${esc(id)}</a>${i.downloaded === false ? ' · ещё не скачан' : ''}${!used.has(id) ? ' · ни один мод из него не включён' : ''}</small></div><button class="btn sm" data-rm="${esc(id)}">Убрать</button></div>`; }).join('');
+  $('#wsItems').innerHTML = wsItems.map(id => { const i = info[id] || {}; return `<div class="it"><div>${esc(i.title || id)}<br><small class="muted"><a href="https://steamcommunity.com/sharedfiles/filedetails/?id=${esc(id)}" target="_blank" rel="noopener">${esc(id)}</a>${i.downloaded === false ? ' · ещё не скачан' : ''}${!used.has(id) ? ' · ни один мод из него не включён' : ''}</small></div><button class="btn sm" data-pin="${esc(id)}" title="Скачать, зафиксировать версию и убрать из WorkshopItems — сервер перестанет её обновлять">📌 Закрепить</button> <button class="btn sm" data-rm="${esc(id)}">Убрать</button></div>`; }).join('');
+  $$('#wsItems [data-pin]').forEach(b => b.onclick = () => {
+    if (modsDirty) return toast('Сначала сохраните изменения списка модов', true);
+    if (!confirm('Закрепить предмет ' + b.dataset.pin + '?\nМод скачается (до пары минут), копия ляжет в Zomboid/mods, из WorkshopItems он будет убран.')) return;
+    act(async () => {
+      const r = await api('/api/workshop/pin', { id: b.dataset.pin });
+      if ((r.java || []).length && confirm('В моде есть Java-код:\n' + r.java.map(j => j.file + '  ' + j.sha256.slice(0, 12)).join('\n') + '\n\nРазрешить его в ZombieBuddy? Без этого сервер заблокирует мод при запуске.')) {
+        const a = await api('/api/workshop/pin', { id: b.dataset.pin, approve: true });
+        r.message += ' ' + a.message;
+      }
+      await loadMods();
+      return r;
+    });
+  });
   $$('#wsItems [data-rm]').forEach(b => b.onclick = () => { wsItems = wsItems.filter(x => x !== b.dataset.rm); setDirty(true); renderWsItems(); });
 }
 function move(i, d) { const j = i + d; if (j < 0 || j >= modsOrder.length) return; [modsOrder[i], modsOrder[j]] = [modsOrder[j], modsOrder[i]]; setDirty(true); renderMods(); }
