@@ -1,6 +1,18 @@
 package pzpanel;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.security.MessageDigest;
+import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.TimeUnit;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -325,6 +337,272 @@ final class Mods {
       var29.put("workshopItems", var25);
       var29.put("map", Configs.iniValue(var1, "Map"));
       return var29;
+   }
+
+   // ---------------- закрепление версии мода из Мастерской ----------------
+   // Копия мода в Zomboid/mods + строка в _frozen_manifest.txt + удаление из WorkshopItems=: сервер перестаёт обновлять мод
+   // и скачивать его при запуске, архив для игроков берёт именно эту версию (как scripts/04_freeze_mods.sh).
+
+   private Path pinSource(String wid) throws IOException, InterruptedException {
+      Path own = this.cfg.serverDir().resolve("steamapps/workshop/content/108600").resolve(wid).resolve("mods");
+      if (Files.isDirectory(own)) {
+         return own;
+      }
+      String cmd = this.cfg.get("steamcmd");
+      if (cmd.isEmpty()) {
+         throw new IOException("Предмет " + wid + " ещё не скачан сервером, а steamcmd не настроен (steamcmd= в panel.properties)");
+      }
+      Path cache = Paths.get(this.cfg.get("steamcmdCache", "/tmp/pzws"));
+      Files.createDirectories(cache);
+      List<String> c = new ArrayList<>();
+      if ("root".equals(System.getProperty("user.name"))) {
+         c.addAll(List.of("runuser", "-u", "steam", "--"));
+      }
+      c.addAll(List.of(cmd, "+force_install_dir", cache.toString(), "+login", "anonymous", "+workshop_download_item", "108600", wid, "validate", "+quit"));
+      Process p = new ProcessBuilder(c).redirectErrorStream(true).start();
+      StringBuilder out = new StringBuilder();
+      Thread t = new Thread(() -> {
+         try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            String l;
+            while ((l = r.readLine()) != null) {
+               synchronized (out) {
+                  out.append(l).append('\n');
+                  if (out.length() > 20000) {
+                     out.delete(0, 10000);
+                  }
+               }
+            }
+         } catch (IOException e) {
+         }
+      });
+      t.setDaemon(true);
+      t.start();
+      if (!p.waitFor(20, TimeUnit.MINUTES)) {
+         p.destroyForcibly();
+         throw new IOException("steamcmd не уложился в 20 минут");
+      }
+      t.join(2000);
+      Path src = cache.resolve("steamapps/workshop/content/108600").resolve(wid).resolve("mods");
+      if (!Files.isDirectory(src)) {
+         String log;
+         synchronized (out) {
+            log = out.length() > 600 ? out.substring(out.length() - 600) : out.toString();
+         }
+         throw new IOException("steamcmd не скачал предмет " + wid + ": " + log.trim());
+      }
+      return src;
+   }
+
+   private static void copyTree(Path from, Path to) throws IOException {
+      try (Stream<Path> s = Files.walk(from)) {
+         for (Path p : (Iterable<Path>) s::iterator) {
+            Path t = to.resolve(from.relativize(p).toString());
+            if (Files.isDirectory(p)) {
+               Files.createDirectories(t);
+            } else {
+               Files.createDirectories(t.getParent());
+               Files.copy(p, t, StandardCopyOption.REPLACE_EXISTING);
+            }
+         }
+      }
+   }
+
+   private static void deleteTree(Path d) throws IOException {
+      if (!Files.exists(d)) {
+         return;
+      }
+      try (Stream<Path> s = Files.walk(d)) {
+         for (Path p : (Iterable<Path>) s.sorted(Comparator.reverseOrder())::iterator) {
+            Files.delete(p);
+         }
+      }
+   }
+
+   private static String sha256(Path f) throws IOException {
+      try (InputStream in = Files.newInputStream(f)) {
+         MessageDigest md = MessageDigest.getInstance("SHA-256");
+         byte[] b = new byte[65536];
+         int n;
+         while ((n = in.read(b)) > 0) {
+            md.update(b, 0, n);
+         }
+         StringBuilder sb = new StringBuilder();
+         for (byte x : md.digest()) {
+            sb.append(String.format("%02x", x));
+         }
+         return sb.toString();
+      } catch (java.security.NoSuchAlgorithmException e) {
+         throw new IOException(e);
+      }
+   }
+
+   /** Папки мода, закреплённого за предметом wid (из _frozen_manifest.txt). */
+   private List<String> pinnedFolders(String wid) throws IOException {
+      Path mf = this.cfg.zomboidDir().resolve("mods").resolve("_frozen_manifest.txt");
+      List<String> r = new ArrayList<>();
+      if (Files.exists(mf)) {
+         for (String l : Util.readText(mf).split("\r?\n")) {
+            String[] c = l.split("\t");
+            if (c.length >= 2 && c[0].trim().equals(wid)) {
+               for (String f : c[1].split(",")) {
+                  if (!f.isBlank()) {
+                     r.add(f.trim());
+                  }
+               }
+            }
+         }
+      }
+      return r;
+   }
+
+   /** Java-часть закреплённого мода: файл, mod id и sha256. approve=true — записать их в ZombieBuddy как разрешённые. */
+   private List<Map<String, Object>> javaParts(String wid, List<String> folders, boolean approve) throws IOException {
+      Path mods = this.cfg.zomboidDir().resolve("mods");
+      List<Map<String, Object>> res = new ArrayList<>();
+      Path apr = this.cfg.zbApprovals();
+      ObjectNode root = null;
+      ArrayNode arr = null;
+      if (approve) {
+         root = Files.exists(apr) ? (ObjectNode) Util.JSON.readTree(Util.readText(apr)) : Util.JSON.createObjectNode();
+         if (!root.path("mods").isArray()) {
+            root.putArray("mods");
+         }
+         arr = (ArrayNode) root.path("mods");
+      }
+      boolean changed = false;
+      for (String f : folders) {
+         Path dir = mods.resolve(f);
+         if (!Files.isDirectory(dir)) {
+            continue;
+         }
+         String fallbackId = f;
+         try (Stream<Path> s = Files.walk(dir)) {
+            for (Path info : (Iterable<Path>) s.filter(x -> x.getFileName().toString().equals("mod.info"))::iterator) {
+               Matcher m = Pattern.compile("(?m)^id=(.+)$").matcher(Util.readText(info));
+               if (m.find()) {
+                  fallbackId = m.group(1).trim();
+                  break;
+               }
+            }
+         }
+         List<Path> jars;
+         try (Stream<Path> s = Files.walk(dir)) {
+            jars = s.filter(x -> x.getFileName().toString().endsWith(".jar")).toList();
+         }
+         for (Path jar : jars) {
+            String id = fallbackId;
+            for (Path d = jar.getParent(); d != null && d.startsWith(dir); d = d.getParent()) {
+               Path info = d.resolve("mod.info");
+               if (Files.exists(info)) {
+                  Matcher m = Pattern.compile("(?m)^id=(.+)$").matcher(Util.readText(info));
+                  if (m.find()) {
+                     id = m.group(1).trim();
+                  }
+                  break;
+               }
+            }
+            String h = sha256(jar);
+            boolean ok = false;
+            if (approve) {
+               for (JsonNode e : arr) {
+                  if (e.path("jar_hash").asText().equals(h)) {
+                     ((ObjectNode) e).put("decision", true);
+                     ok = true;
+                  }
+               }
+               if (!ok) {
+                  ObjectNode e = arr.addObject();
+                  e.put("id", id);
+                  e.put("workshop_id", Long.parseLong(wid));
+                  e.put("jar_hash", h);
+                  e.put("decision", true);
+               }
+               changed = true;
+            }
+            Map<String, Object> j = new LinkedHashMap<>();
+            j.put("mod", id);
+            j.put("file", jar.getFileName().toString());
+            j.put("sha256", h);
+            j.put("approved", approve);
+            res.add(j);
+         }
+      }
+      if (changed) {
+         Files.createDirectories(apr.getParent());
+         Util.writeTextWithBackup(apr, Util.JSON.writerWithDefaultPrettyPrinter().writeValueAsString(root), this.cfg.fileBackupDir());
+      }
+      return res;
+   }
+
+   Map<String, Object> pin(String wid) throws IOException, InterruptedException {
+      if (wid.isEmpty()) {
+         throw new IOException("Не указан ID предмета");
+      }
+      Path src = this.pinSource(wid);
+      Path dst = this.cfg.zomboidDir().resolve("mods");
+      Files.createDirectories(dst);
+      List<String> folders = new ArrayList<>();
+      try (Stream<Path> s = Files.list(src)) {
+         for (Path p : (Iterable<Path>) s.filter(Files::isDirectory)::iterator) {
+            folders.add(p.getFileName().toString());
+         }
+      }
+      if (folders.isEmpty()) {
+         throw new IOException("В предмете " + wid + " нет папки mods/<мод>");
+      }
+      for (String f : folders) {
+         deleteTree(dst.resolve(f));
+         copyTree(src.resolve(f), dst.resolve(f));
+      }
+      if (!src.startsWith(this.cfg.serverDir())) {
+         deleteTree(src.getParent()); // кэш steamcmd больше не нужен
+      }
+      long upd = 0L;
+      try {
+         List<Map<String, Object>> d = this.details(List.of(wid));
+         if (!d.isEmpty() && d.get(0).get("updated") instanceof Number n) {
+            upd = n.longValue();
+         }
+      } catch (Exception e) {
+      }
+      String stamp = (upd > 0 ? LocalDateTime.ofInstant(Instant.ofEpochSecond(upd), ZoneOffset.UTC) : LocalDateTime.now(ZoneOffset.UTC))
+         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+      Path mf = dst.resolve("_frozen_manifest.txt");
+      List<String> keep = new ArrayList<>();
+      if (Files.exists(mf)) {
+         for (String l : Util.readText(mf).split("\r?\n")) {
+            if (!l.isEmpty() && !l.startsWith(wid + "\t")) {
+               keep.add(l);
+            }
+         }
+      }
+      keep.add(wid + "\t" + String.join(",", folders) + "\tpanel\t" + stamp);
+      Util.writeTextWithBackup(mf, String.join("\n", keep) + "\n", this.cfg.fileBackupDir());
+      List<String> ws = new ArrayList<>(splitList(Configs.iniValue(this.cfg.serverIni(), "WorkshopItems")));
+      boolean wasWs = ws.remove(wid);
+      if (wasWs) {
+         LinkedHashMap<String, String> m = new LinkedHashMap<>();
+         m.put("WorkshopItems", String.join(";", ws));
+         Configs.writeIni(this.cfg.serverIni(), m, this.cfg.fileBackupDir());
+      }
+      List<Map<String, Object>> java = this.javaParts(wid, folders, false);
+      Map<String, Object> r = new LinkedHashMap<>();
+      r.put("message", "Закреплено: " + String.join(", ", folders) + (wasWs ? " (убрано из WorkshopItems — сервер больше не обновляет мод)" : "") + ". Нужен перезапуск сервера.");
+      r.put("folders", folders);
+      r.put("java", java);
+      return r;
+   }
+
+   Map<String, Object> approveJava(String wid) throws IOException {
+      List<String> folders = this.pinnedFolders(wid);
+      if (folders.isEmpty()) {
+         throw new IOException("Предмет " + wid + " не закреплён");
+      }
+      List<Map<String, Object>> java = this.javaParts(wid, folders, true);
+      Map<String, Object> r = new LinkedHashMap<>();
+      r.put("message", "Java-часть разрешена в ZombieBuddy: " + java.size() + " jar. Нужен перезапуск сервера.");
+      r.put("java", java);
+      return r;
    }
 
    private static String strip(String var0) {

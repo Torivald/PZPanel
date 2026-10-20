@@ -354,6 +354,13 @@ public final class Main {
 
             json(var1, 200, this.mods.details(var21));
             break;
+         case "/api/workshop/pin":
+            JsonNode pinBody = body(var1);
+            String pinId = digits(pinBody.path("id").asText());
+            Map<String, Object> pinRes = pinBody.path("approve").asBoolean(false) ? this.mods.approveJava(pinId) : this.mods.pin(pinId);
+            this.srv.markConfigChanged();
+            json(var1, 200, pinRes);
+            break;
          case "/api/workshop/collection":
             json(var1, 200, this.mods.collection(digits((String)var4.get("id"))));
             break;
