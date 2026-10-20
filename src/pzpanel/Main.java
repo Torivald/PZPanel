@@ -357,6 +357,10 @@ public final class Main {
          case "/api/workshop/pin":
             JsonNode pinBody = body(var1);
             String pinId = digits(pinBody.path("id").asText());
+            if (Util.isWindows() && !pinBody.path("approve").asBoolean(false) && this.srv.isRunning()) {
+               // на Windows файлы модов (jar) заняты работающим сервером — замена папки сорвётся на середине
+               throw new IOException("Остановите сервер: на Windows файлы модов заняты, пока он работает");
+            }
             Map<String, Object> pinRes = pinBody.path("approve").asBoolean(false) ? this.mods.approveJava(pinId) : this.mods.pin(pinId);
             this.srv.markConfigChanged();
             json(var1, 200, pinRes);
