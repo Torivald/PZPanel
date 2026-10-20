@@ -6,6 +6,8 @@ import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.io.Writer;
 import java.lang.ProcessHandle.Info;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,6 +55,29 @@ final class ServerManager {
       return var1 != null && var1.isAlive();
    }
 
+   /** serverMode=remote: сервер в другом контейнере. «Запущен» = открыт RCON-порт, запуск и перезапуск делает Docker (restart policy). */
+   private boolean remote() {
+      return "remote".equals(this.cfg.get("serverMode", "local"));
+   }
+
+   private String rconHost() {
+      return this.cfg.get("rconHost", "127.0.0.1");
+   }
+
+   private boolean remoteUp() {
+      int port = 27015;
+      try {
+         port = Integer.parseInt(Configs.iniValue(this.cfg.serverIni(), "RCONPort"));
+      } catch (Exception e) {
+      }
+      try (Socket s = new Socket()) {
+         s.connect(new InetSocketAddress(this.rconHost(), port), 1500);
+         return true;
+      } catch (IOException e) {
+         return false;
+      }
+   }
+
    Optional<ProcessHandle> externalServer() {
       if (this.ownedAlive()) {
          return Optional.empty();
@@ -91,6 +116,9 @@ final class ServerManager {
 
    /** Имя мира работающего сервера или null, если сервер не запущен. */
    String runningWorld() {
+      if (this.remote()) {
+         return this.remoteUp() ? this.cfg.serverName() : null;
+      }
       if (this.ownedAlive()) {
          return this.startedWorld != null ? this.startedWorld : this.cfg.serverName();
       }
@@ -104,7 +132,7 @@ final class ServerManager {
    }
 
    boolean isRunning() {
-      return this.ownedAlive() || this.externalServer().isPresent();
+      return this.remote() ? this.remoteUp() : this.ownedAlive() || this.externalServer().isPresent();
    }
 
    Optional<ProcessHandle> serverHandle() {
@@ -116,7 +144,7 @@ final class ServerManager {
       LinkedHashMap var1 = new LinkedHashMap();
       boolean var2 = this.ownedAlive();
       Optional<ProcessHandle> var3 = var2 ? Optional.<ProcessHandle>empty() : this.externalServer();
-      boolean var4 = var2 || var3.isPresent();
+      boolean var4 = this.remote() ? this.remoteUp() : var2 || var3.isPresent();
       if (!var4 && !this.state.equals("starting") && !this.state.equals("restarting")) {
          this.state = "stopped";
       }
@@ -128,9 +156,11 @@ final class ServerManager {
       var1.put("state", this.state);
       var1.put("running", var4);
       var1.put("owned", var2);
-      long var5 = var2 ? this.proc.pid() : var3.map(ProcessHandle::pid).orElse(-1L);
+      var1.put("remote", this.remote());
+      com.fasterxml.jackson.databind.JsonNode rm = this.remote() ? Stats.remoteMetrics(this.cfg) : null;
+      long var5 = rm != null ? rm.path("pid").asLong(-1L) : var2 ? this.proc.pid() : var3.map(ProcessHandle::pid).orElse(-1L);
       var1.put("pid", var5);
-      long var7 = var2 ? this.startedAt : var3.flatMap(var0 -> var0.info().startInstant()).map(Instant::toEpochMilli).orElse(0L);
+      long var7 = rm != null ? rm.path("startEpoch").asLong() * 1000L : var2 ? this.startedAt : var3.flatMap(var0 -> var0.info().startInstant()).map(Instant::toEpochMilli).orElse(0L);
       var1.put("startedAt", var7);
       var1.put("uptimeSec", var7 > 0L && var4 ? (System.currentTimeMillis() - var7) / 1000L : 0L);
       var1.put("lastAction", this.lastAction);
@@ -257,10 +287,13 @@ final class ServerManager {
       } catch (Exception var5) {
       }
 
-      return Rcon.exec("127.0.0.1", var3, Configs.iniValue(var2, "RCONPassword"), var1, 5000);
+      return Rcon.exec(this.rconHost(), var3, Configs.iniValue(var2, "RCONPassword"), var1, 5000);
    }
 
    synchronized String start() throws IOException {
+      if (this.remote()) {
+         throw new IOException("Сервер в отдельном контейнере (serverMode=remote): запускайте его средствами контейнера (docker start / compose)");
+      }
       if (!this.ownedAlive() && !this.externalServer().isPresent()) {
          Path var1 = this.cfg.serverDir();
          Path var2 = var1.resolve(this.cfg.get("startScript"));
@@ -352,6 +385,25 @@ final class ServerManager {
    }
 
    String stop(boolean var1) throws IOException {
+      if (this.remote()) {
+         if (var1) {
+            throw new IOException("Принудительное завершение недоступно: сервер в другом контейнере (docker stop / kill)");
+         }
+         if (!this.remoteUp()) {
+            this.state = "stopped";
+            return "Сервер не запущен";
+         }
+         this.state = "stopping";
+         this.lastAction = "Остановка " + LocalTime.now().withNano(0);
+         try {
+            this.sendConsole("save");
+            Thread.sleep(3000L);
+            this.sendConsole("quit");
+         } catch (Exception e) {
+            throw new IOException("Не удалось отправить quit: " + e.getMessage());
+         }
+         return "Отправлены save и quit. Если у контейнера restart policy — сервер поднимется заново; остановить совсем — docker stop";
+      }
       this.stopRequested = true;
       Optional var2 = this.ownedAlive() ? Optional.of(this.proc.toHandle()) : this.externalServer();
       if (var2.isEmpty()) {
@@ -419,7 +471,7 @@ final class ServerManager {
          this.lastAction = "Перезапуск " + (var1 > 0 ? "через " + var1 + " мин" : "сейчас");
          this.sched.submit(() -> {
             try {
-               boolean var2 = this.ownedAlive() || this.externalServer().isPresent();
+               boolean var2 = this.isRunning();
                if (var2 && var1 > 0) {
                   for (int var3 = var1; var3 > 0; var3--) {
                      this.broadcast("Перезапуск сервера через " + var3 + " мин.");
@@ -434,7 +486,7 @@ final class ServerManager {
                   this.stop(false);
                   long var6 = System.currentTimeMillis() + 200000L;
 
-                  while ((this.ownedAlive() || this.externalServer().isPresent()) && System.currentTimeMillis() < var6) {
+                  while (this.isRunning() && System.currentTimeMillis() < var6) {
                      Thread.sleep(1000L);
                   }
 
@@ -442,7 +494,9 @@ final class ServerManager {
                }
 
                this.state = "stopped";
-               this.start();
+               if (!this.remote()) {
+                  this.start();
+               }
             } catch (Exception var5) {
                this.state = this.ownedAlive() ? "running" : "stopped";
                this.lastAction = "Перезапуск не удался: " + var5.getMessage();
@@ -471,7 +525,7 @@ final class ServerManager {
             if (!var5.equals(this.lastDailyRun)
                && !var6.isBefore(var4)
                && var6.isBefore(var4.plusMinutes(2L))
-               && (this.ownedAlive() || this.externalServer().isPresent())) {
+               && this.isRunning()) {
                this.lastDailyRun = var5;
                this.restart(var3);
             }

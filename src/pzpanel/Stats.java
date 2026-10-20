@@ -1,5 +1,6 @@
 package pzpanel;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.sun.management.OperatingSystemMXBean;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -61,6 +62,10 @@ final class Stats {
 
    private void sample() {
       long var1 = System.currentTimeMillis();
+      if ("remote".equals(this.cfg.get("serverMode", "local"))) {
+         this.sampleRemote(var1);
+         return;
+      }
       Optional var3 = this.server.get();
       LinkedHashMap var4 = new LinkedHashMap();
       double var5 = -1.0;
@@ -145,6 +150,76 @@ final class Stats {
          this.last = var4;
          this.push(var1, Double.NaN, Double.NaN, var5, var7);
       }
+   }
+
+   /** Метрики процесса сервера из другого контейнера: его скрипт раз в 5 с пишет .panel-metrics.json в общий том. Старше 20 с — не верим. */
+   static JsonNode remoteMetrics(Config cfg) {
+      try {
+         Path f = cfg.zomboidDir().resolve(".panel-metrics.json");
+         if (!Files.isRegularFile(f)) {
+            return null;
+         }
+         JsonNode m = Util.JSON.readTree(Util.readText(f));
+         return System.currentTimeMillis() - m.path("ts").asLong() < 20000L ? m : null;
+      } catch (Exception e) {
+         return null;
+      }
+   }
+
+   private void sampleRemote(long now) {
+      JsonNode m = remoteMetrics(this.cfg);
+      LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+      if (m == null) {
+         synchronized (this) {
+            this.prevCpu.clear();
+            this.prevAt = 0L;
+            this.rootPid = -1L;
+         }
+         out.put("cores", this.cores);
+         out.put("running", false);
+         this.last = out;
+         this.push(now, Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+         return;
+      }
+      long ts = m.path("ts").asLong();
+      long pid = m.path("pid").asLong();
+      long ticks = m.path("ticks").asLong();
+      long hz = Math.max(1L, m.path("hz").asLong(100L));
+      int cores = Math.max(1, m.path("cores").asInt(this.cores));
+      long rssKb = m.path("rssKb").asLong();
+      double cpu = Double.NaN;
+      synchronized (this) {
+         if (this.prevAt == ts) {
+            return; // тот же файл, нового замера нет
+         }
+         if (this.rootPid != pid) {
+            this.prevCpu.clear();
+            this.prevAt = 0L;
+            this.rootPid = pid;
+            this.peakRss = 0L;
+            this.peakSince = now;
+         }
+         if (this.prevAt > 0L && ts > this.prevAt) {
+            long d = Math.max(0L, ticks - this.prevCpu.getOrDefault(0L, 0L));
+            cpu = Math.min(100.0, Math.max(0.0, d * 1000.0 / hz / (ts - this.prevAt) * 100.0 / cores));
+         }
+         this.prevCpu.put(0L, ticks);
+         this.prevAt = ts;
+         this.peakRss = Math.max(this.peakRss, rssKb);
+      }
+      double rssMb = rssKb / 1024.0;
+      out.put("cores", cores);
+      out.put("running", true);
+      out.put("pid", pid);
+      out.put("processes", m.path("procs").asInt(1));
+      out.put("cpu", Double.isNaN(cpu) ? null : round1(cpu));
+      out.put("cpuCores", Double.isNaN(cpu) ? null : round1(cpu * cores / 100.0));
+      out.put("rssMb", Math.round(rssMb));
+      out.put("peakRssMb", this.peakRss / 1024L);
+      out.put("xmxMb", this.xmxMb(new ArrayList<>()));
+      out.put("threads", m.path("threads").asInt());
+      this.last = out;
+      this.push(now, cpu, rssMb, Double.NaN, Double.NaN);
    }
 
    private synchronized void push(long var1, double var3, double var5, double var7, double var9) {

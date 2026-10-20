@@ -51,12 +51,12 @@ async function refreshStatus() {
   try { status = await api('/api/status'); } catch (e) { $('#stateText').textContent = 'панель недоступна'; return; }
   const st = status.state, running = status.running;
   const label = { stopped: 'остановлен', starting: 'запускается', running: 'работает', stopping: 'останавливается', restarting: 'перезапуск' }[st] || st;
-  $('#stateText').textContent = label + (running && status.owned === false ? ' (вне панели)' : '');
+  $('#stateText').textContent = label + (running && status.owned === false && !status.remote ? ' (вне панели)' : '');
   $('#stateDot').className = 'dot ' + (st === 'running' ? 'on' : running || st === 'starting' || st === 'restarting' ? 'mid' : '');
   const b = $('#stateBadge'); b.textContent = label; b.className = 'badge ' + (st === 'running' ? 'on' : running || st !== 'stopped' ? 'mid' : 'off');
   $('#srvName').textContent = status.serverName; $('#brandSub').textContent = status.publicName || status.serverName;
   $('#srvInfo').innerHTML = [
-    ['Процесс', running ? 'PID ' + status.pid + (status.owned ? ', запущен из панели' : ', запущен вне панели (команды идут через RCON)') : '—'],
+    ['Процесс', running && status.remote ? 'контейнер сервера' + (status.pid > 0 ? ', PID ' + status.pid : '') + ' (команды идут через RCON; запуск и остановка — средствами контейнера)' : running ? 'PID ' + status.pid + (status.owned ? ', запущен из панели' : ', запущен вне панели (команды идут через RCON)') : '—'],
     ['Время работы', running && status.uptimeSec ? fmtDur(status.uptimeSec) : '—'],
     ['Порт игры / RCON', (status.gamePort || '16261') + ' / ' + (status.rconPort || '—') + (status.rconEnabled ? '' : ' (RCON выключен: пустой RCONPassword)')],
     ['Последнее действие', status.lastAction || '—'],
@@ -1035,7 +1035,7 @@ function drawLoad(cv, hist, series, maxY, fmtY, mark) {
 function renderLoad() {
   const r = lastStats; if (!r) return;
   const H = r.history || [], acc = cssVar('--accent'), mut = cssVar('--muted'), info = cssVar('--info');
-  $('#loadSys').textContent = (r.sysCpu != null ? 'машина: ЦПУ ' + Math.round(r.sysCpu) + '%' : '') +
+  $('#loadSys').textContent = status && status.remote ? '' : (r.sysCpu != null ? 'машина: ЦПУ ' + Math.round(r.sysCpu) + '%' : '') +
     (r.sysMemTotalMb ? ', ОЗУ ' + fmtMb(r.sysMemUsedMb) + ' из ' + fmtMb(r.sysMemTotalMb) : '') + (r.cores ? ', ядер ' + r.cores : '');
   if (r.running) {
     $('#loadCpu').textContent = r.cpu != null ? r.cpu.toFixed(0) + '%' : '…';
@@ -1046,7 +1046,7 @@ function renderLoad() {
       (r.processes > 1 ? `, процессов ${r.processes}` : '') + (r.threads ? `, потоков ${r.threads}` : '');
   } else {
     $('#loadCpu').textContent = '—'; $('#loadRam').textContent = '—';
-    $('#loadCpuSub').textContent = 'сервер не запущен'; $('#loadRamSub').textContent = '';
+    $('#loadCpuSub').textContent = status && status.running ? 'сервер работает, но свежих метрик нет (скрипт pz-metrics.sh в контейнере сервера не пишет файл)' : 'сервер не запущен'; $('#loadRamSub').textContent = '';
   }
   drawLoad($('#cpuChart'), H, [{ i: 3, color: mut, width: 1 }, { i: 1, color: acc, width: 2 }], 100, v => Math.round(v) + '%');
   const ramVals = H.map(p => p[2] || 0), top = Math.max(r.xmxMb ? r.xmxMb * 1.25 : 0, ...ramVals, 1024);
