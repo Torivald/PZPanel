@@ -1,569 +1,334 @@
 package pzpanel;
 
 import com.fasterxml.jackson.databind.JsonNode;
+
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.Map.Entry;
+import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import java.util.regex.*;
 
+/** Mod list in the server .ini, mod.info scanning in workshop folders, Steam Workshop lookups. */
 final class Mods {
-   private final Config cfg;
-   private final Map<String, Map<String, Object>> steamCache = new ConcurrentHashMap<>();
+    private final Config cfg;
+    private final Map<String, Map<String, Object>> steamCache = new ConcurrentHashMap<>();
 
-   Mods(Config var1) {
-      this.cfg = var1;
-   }
+    Mods(Config cfg) { this.cfg = cfg; }
 
-   Map<String, List<Mods.ModInfo>> scan() {
-      LinkedHashMap<String, List<Mods.ModInfo>> var1 = new LinkedHashMap<>();
-      double var2 = parseVer(this.cfg.get("gameVersion", "42.21"));
-      Path var4 = this.cfg.zomboidDir().resolve("mods");
-      if (Files.isDirectory(var4)) {
-         HashMap<String, String> var5 = new HashMap<>();
+    record ModInfo(String id, String name, String workshopId, String folder, String versionDir, List<String> require,
+                   List<String> loadAfter, List<String> loadBefore, List<String> incompatible,
+                   String versionMin, String versionMax, boolean java, String poster, boolean local) {}
 
-         try {
-            Path var6 = var4.resolve("_frozen_manifest.txt");
-            if (Files.exists(var6)) {
-               for (String var10 : Util.readText(var6).split("\r?\n")) {
-                  if (!var10.startsWith("#")) {
-                     String[] var11 = var10.split("\t");
-                     if (var11.length >= 2) {
-                        for (String var15 : var11[1].split(",")) {
-                           if (!var15.isBlank()) {
-                              var5.put(var15.trim(), var11[0].trim());
-                           }
+    // ------------ scanning ------------
+    Map<String, List<ModInfo>> scan() {
+        Map<String, List<ModInfo>> byId = new LinkedHashMap<>();
+        double gv = parseVer(cfg.get("gameVersion", "42.21"));
+        // 1) local (frozen) mods: Zomboid/mods/<folder>; workshop id from _frozen_manifest.txt if present
+        Path local = cfg.zomboidDir().resolve("mods");
+        if (Files.isDirectory(local)) {
+            Map<String, String> folderToWid = new HashMap<>();
+            try {
+                Path man = local.resolve("_frozen_manifest.txt");
+                if (Files.exists(man)) for (String l : Util.readText(man).split("\r?\n")) {
+                    if (l.startsWith("#")) continue;
+                    String[] c = l.split("\t");
+                    if (c.length >= 2) for (String f : c[1].split(",")) if (!f.isBlank()) folderToWid.put(f.trim(), c[0].trim());
+                }
+            } catch (IOException ignored) {}
+            try (var mods = Files.list(local)) {
+                for (Path mod : (Iterable<Path>) mods::iterator) {
+                    if (!Files.isDirectory(mod)) continue;
+                    ModInfo mi = readMod(mod, folderToWid.getOrDefault(mod.getFileName().toString(), ""), gv, true);
+                    if (mi != null) byId.computeIfAbsent(mi.id(), k -> new ArrayList<>()).add(mi);
+                }
+            } catch (IOException ignored) {}
+        }
+        for (Path wd : cfg.workshopDirs()) {
+            if (!Files.isDirectory(wd)) continue;
+            boolean isLocalWorkshop = wd.getFileName().toString().equals("Workshop");
+            try (var items = Files.list(wd)) {
+                for (Path item : (Iterable<Path>) items::iterator) {
+                    Path modsDir = isLocalWorkshop ? item.resolve("Contents").resolve("mods") : item.resolve("mods");
+                    if (!Files.isDirectory(modsDir)) continue;
+                    String wid = isLocalWorkshop ? "" : item.getFileName().toString();
+                    try (var mods = Files.list(modsDir)) {
+                        for (Path mod : (Iterable<Path>) mods::iterator) {
+                            ModInfo mi = readMod(mod, wid, gv, false);
+                            if (mi != null) byId.computeIfAbsent(mi.id(), k -> new ArrayList<>()).add(mi);
                         }
-                     }
-                  }
-               }
+                    } catch (IOException ignored) {}
+                }
+            } catch (IOException ignored) {}
+        }
+        return byId;
+    }
+
+    private static ModInfo readMod(Path mod, String wid, double gv, boolean local) {
+        Path best = null; double bestV = -1;
+        try (var s = Files.list(mod)) {
+            for (Path d : (Iterable<Path>) s::iterator) {
+                String n = d.getFileName().toString();
+                if (!Files.isDirectory(d) || !n.matches("\\d+(\\.\\d+)*")) continue;
+                double v = parseVer(n);
+                if (v <= gv + 1e-9 && v > bestV && Files.exists(d.resolve("mod.info"))) { best = d; bestV = v; }
             }
-         } catch (IOException var26) {
-         }
-
-         try (Stream<Path> var28 = Files.list(var4)) {
-            for (Path var32 : (Iterable<Path>) var28::iterator) {
-               if (Files.isDirectory(var32)) {
-                  Mods.ModInfo var34 = readMod(var32, var5.getOrDefault(var32.getFileName().toString(), ""), var2, true);
-                  if (var34 != null) {
-                     var1.computeIfAbsent(var34.id(), var0 -> new ArrayList<>()).add(var34);
-                  }
-               }
+        } catch (IOException ignored) {}
+        if (best == null) {
+            if (Files.exists(mod.resolve("common").resolve("mod.info"))) best = mod.resolve("common");
+            else if (Files.exists(mod.resolve("mod.info"))) best = mod;
+            else return null;
+        }
+        Map<String, String> kv = new HashMap<>();
+        Map<String, List<String>> multi = new HashMap<>();
+        try {
+            for (String l : Util.readText(best.resolve("mod.info")).split("\r?\n")) {
+                int eq = l.indexOf('=');
+                if (eq <= 0) continue;
+                String k = l.substring(0, eq).trim(), v = l.substring(eq + 1).trim();
+                kv.putIfAbsent(k, v);
+                multi.computeIfAbsent(k, x -> new ArrayList<>()).add(v);
             }
-         } catch (IOException var25) {
-         }
-      }
+        } catch (IOException e) { return null; }
+        String id = kv.get("id");
+        if (id == null || id.isBlank()) return null;
+        boolean java = Files.isDirectory(best.resolve("media").resolve("java")) || Files.isDirectory(mod.resolve("common").resolve("media").resolve("java"));
+        return new ModInfo(id.trim(), kv.getOrDefault("name", id), wid, mod.getFileName().toString(),
+                best.getFileName().toString(), list(multi.get("require")), list(multi.get("loadModAfter")),
+                list(multi.get("loadModBefore")), list(multi.get("incompatible")),
+                kv.getOrDefault("versionMin", ""), kv.getOrDefault("versionMax", ""), java,
+                Files.exists(best.resolve("poster.png")) ? best.resolve("poster.png").toString() : "", local);
+    }
 
-      for (Path var29 : this.cfg.workshopDirs()) {
-         if (Files.isDirectory(var29)) {
-            boolean var31 = var29.getFileName().toString().equals("Workshop");
+    private static List<String> list(List<String> raw) {
+        List<String> out = new ArrayList<>();
+        if (raw == null) return out;
+        for (String r : raw) for (String x : r.split("[,;]")) {
+            String t = x.trim().replaceFirst("^\\\\+", "");
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
 
-            try (Stream<Path> var33 = Files.list(var29)) {
-               for (Path var36 : (Iterable<Path>) var33::iterator) {
-                  Path var37 = var31 ? var36.resolve("Contents").resolve("mods") : var36.resolve("mods");
-                  if (Files.isDirectory(var37)) {
-                     String var38 = var31 ? "" : var36.getFileName().toString();
+    static double parseVer(String v) {
+        try {
+            String[] p = v.trim().split("\\.");
+            double r = Double.parseDouble(p[0]);
+            if (p.length > 1) r += Double.parseDouble("0." + String.format("%03d", Integer.parseInt(p[1].replaceAll("\\D", "0"))));
+            return r;
+        } catch (Exception e) { return 0; }
+    }
 
-                     try (Stream<Path> var39 = Files.list(var37)) {
-                        for (Path var41 : (Iterable<Path>) var39::iterator) {
-                           Mods.ModInfo var16 = readMod(var41, var38, var2, false);
-                           if (var16 != null) {
-                              var1.computeIfAbsent(var16.id(), var0 -> new ArrayList<>()).add(var16);
-                           }
-                        }
-                     } catch (IOException var21) {
-                     }
-                  }
-               }
-            } catch (IOException var23) {
+    // ------------ current state ------------
+    static List<String> splitList(String s) {
+        List<String> out = new ArrayList<>();
+        for (String x : s.split(";")) { String t = x.trim(); if (!t.isEmpty()) out.add(t); }
+        return out;
+    }
+
+    Map<String, Object> state() {
+        Path ini = cfg.serverIni();
+        List<String> mods = splitList(Configs.iniValue(ini, "Mods"));
+        List<String> items = splitList(Configs.iniValue(ini, "WorkshopItems"));
+        Map<String, List<ModInfo>> scan = scan();
+        Set<String> itemSet = new HashSet<>(items);
+        double gv = parseVer(cfg.get("gameVersion", "42.21"));
+
+        List<Map<String, Object>> enabled = new ArrayList<>();
+        Map<String, Integer> pos = new HashMap<>();
+        for (int i = 0; i < mods.size(); i++) pos.put(strip(mods.get(i)), i);
+        for (int i = 0; i < mods.size(); i++) {
+            String raw = mods.get(i), id = strip(raw);
+            ModInfo mi = pick(scan.get(id), itemSet);
+            Map<String, Object> m = describe(id, mi);
+            m.put("raw", raw);
+            List<String> issues = new ArrayList<>();
+            if (mi == null) issues.add(items.isEmpty() ? "Файлы не найдены в Zomboid/mods — моды заморожены, сервер его не скачает" : "Файлы не найдены — мод скачается при запуске сервера (если его предмет есть в списке Мастерской)");
+            else {
+                for (String r : mi.require()) {
+                    Integer p = pos.get(r);
+                    if (p == null) issues.add("Требует " + r + ", но он не включён");
+                    else if (p > i) issues.add("Требует " + r + " — он должен стоять выше");
+                }
+                for (String a : mi.loadAfter()) { Integer p = pos.get(a); if (p != null && p > i) issues.add("Должен грузиться после " + a); }
+                for (String b : mi.loadBefore()) { Integer p = pos.get(b); if (p != null && p < i) issues.add("Должен грузиться до " + b); }
+                for (String x : mi.incompatible()) if (pos.containsKey(x)) issues.add("Несовместим с " + x);
+                if (!mi.versionMax().isBlank() && parseVer(mi.versionMax()) + 1e-9 < gv) issues.add("versionMax " + mi.versionMax() + " ниже версии игры");
+                if (!mi.local() && !mi.workshopId().isEmpty() && !itemSet.contains(mi.workshopId())) issues.add("Предмет Мастерской " + mi.workshopId() + " не в списке WorkshopItems — игроки его не скачают");
             }
-         }
-      }
+            m.put("issues", issues);
+            enabled.add(m);
+        }
+        List<Map<String, Object>> available = new ArrayList<>();
+        for (var e : scan.entrySet()) {
+            if (pos.containsKey(e.getKey())) continue;
+            ModInfo mi = pick(e.getValue(), itemSet);
+            Map<String, Object> m = describe(e.getKey(), mi);
+            m.put("inWorkshopItems", mi != null && itemSet.contains(mi.workshopId()));
+            available.add(m);
+        }
+        available.sort(Comparator.comparing(m -> String.valueOf(m.get("name")).toLowerCase(Locale.ROOT)));
 
-      return var1;
-   }
+        Set<String> usedItems = new HashSet<>();
+        for (Map<String, Object> m : enabled) usedItems.add(String.valueOf(m.get("workshopId")));
+        List<Map<String, Object>> itemList = new ArrayList<>();
+        for (String it : items) {
+            Map<String, Object> x = new LinkedHashMap<>();
+            x.put("id", it);
+            x.put("downloaded", cfg.workshopDirs().stream().anyMatch(d -> Files.isDirectory(d.resolve(it))));
+            x.put("usedByEnabledMod", usedItems.contains(it));
+            Map<String, Object> c = steamCache.get(it);
+            if (c != null) x.put("title", c.get("title"));
+            itemList.add(x);
+        }
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("enabled", enabled);
+        r.put("available", available);
+        r.put("workshopItems", itemList);
+        r.put("map", Configs.iniValue(ini, "Map"));
+        return r;
+    }
 
-   private static Mods.ModInfo readMod(Path var0, String var1, double var2, boolean var4) {
-      Path var5 = null;
-      double var6 = -1.0;
+    private static String strip(String s) { return s.replaceFirst("^\\\\+", ""); }
 
-      try (Stream<Path> var8 = Files.list(var0)) {
-         for (Path var10 : (Iterable<Path>) var8::iterator) {
-            String var11 = var10.getFileName().toString();
-            if (Files.isDirectory(var10) && var11.matches("\\d+(\\.\\d+)*")) {
-               double var12 = parseVer(var11);
-               if (var12 <= var2 + 1.0E-9 && var12 > var6 && Files.exists(var10.resolve("mod.info"))) {
-                  var5 = var10;
-                  var6 = var12;
-               }
+    private static ModInfo pick(List<ModInfo> l, Set<String> preferItems) {
+        if (l == null || l.isEmpty()) return null;
+        for (ModInfo m : l) if (preferItems.contains(m.workshopId())) return m;
+        return l.get(0);
+    }
+
+    private static Map<String, Object> describe(String id, ModInfo mi) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        m.put("name", mi == null ? id : mi.name());
+        m.put("workshopId", mi == null ? "" : mi.workshopId());
+        m.put("installed", mi != null);
+        if (mi != null) {
+            m.put("require", mi.require());
+            m.put("loadAfter", mi.loadAfter());
+            m.put("versionMin", mi.versionMin());
+            m.put("versionMax", mi.versionMax());
+            m.put("versionDir", mi.versionDir());
+            m.put("java", mi.java());
+            m.put("local", mi.local());
+            m.put("hasPoster", !mi.poster().isEmpty());
+        }
+        return m;
+    }
+
+    Path posterPath(String modId) {
+        List<ModInfo> l = scan().get(modId);
+        if (l == null) return null;
+        for (ModInfo m : l) if (!m.poster().isEmpty()) return Paths.get(m.poster());
+        return null;
+    }
+
+    /** Saves Mods= and WorkshopItems=; optionally mirrors the order into the client mods/default.txt. */
+    void save(List<String> mods, List<String> items, boolean syncClient) throws IOException {
+        Map<String, String> ch = new LinkedHashMap<>();
+        ch.put("Mods", String.join(";", mods));
+        ch.put("WorkshopItems", String.join(";", items));
+        Configs.writeIni(cfg.serverIni(), ch, cfg.fileBackupDir());
+        if (syncClient) writeClientMods(mods);
+    }
+
+    void writeClientMods(List<String> mods) throws IOException {
+        Path f = cfg.clientModsFile();
+        String old = Files.exists(f) ? Util.readText(f) : "VERSION = 1,\n\nmods\n{\n}\n\nmaps\n{\n}\n";
+        String sep = Util.lineSep(old);
+        StringBuilder body = new StringBuilder("mods").append(sep).append('{').append(sep);
+        for (String m : mods) body.append("    mod = ").append(strip(m)).append(',').append(sep);
+        body.append('}');
+        Matcher mm = Pattern.compile("mods\\s*\\{[^}]*\\}", Pattern.DOTALL).matcher(old);
+        String out = mm.find() ? old.substring(0, mm.start()) + body + old.substring(mm.end()) : old + sep + body + sep;
+        Files.createDirectories(f.getParent());
+        Util.writeTextWithBackup(f, out, cfg.fileBackupDir());
+    }
+
+    // ------------ Steam Workshop ------------
+    List<Map<String, Object>> details(Collection<String> ids) throws IOException, InterruptedException {
+        List<String> need = new ArrayList<>();
+        for (String id : ids) if (!steamCache.containsKey(id)) need.add(id);
+        for (int start = 0; start < need.size(); start += 100) {
+            List<String> chunk = need.subList(start, Math.min(need.size(), start + 100));
+            StringBuilder f = new StringBuilder("itemcount=" + chunk.size());
+            for (int i = 0; i < chunk.size(); i++) f.append("&publishedfileids%5B").append(i).append("%5D=").append(chunk.get(i));
+            JsonNode root = Util.JSON.readTree(Util.httpPostForm("https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/", f.toString()));
+            for (JsonNode d : root.path("response").path("publishedfiledetails")) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                String id = d.path("publishedfileid").asText();
+                m.put("id", id);
+                m.put("ok", d.path("result").asInt() == 1);
+                m.put("title", d.path("title").asText(""));
+                m.put("preview", d.path("preview_url").asText(""));
+                m.put("updated", d.path("time_updated").asLong(0));
+                m.put("size", d.path("file_size").asLong(0));
+                m.put("subs", d.path("lifetime_subscriptions").asLong(d.path("subscriptions").asLong(0)));
+                List<String> tags = new ArrayList<>();
+                for (JsonNode t : d.path("tags")) tags.add(t.path("tag").asText());
+                m.put("tags", tags);
+                String desc = d.path("description").asText("");
+                m.put("modIds", parseModIds(desc));
+                m.put("description", desc.length() > 1500 ? desc.substring(0, 1500) + "…" : desc);
+                steamCache.put(id, m);
             }
-         }
-      } catch (IOException var20) {
-      }
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String id : ids) { Map<String, Object> m = steamCache.get(id); if (m != null) out.add(m); }
+        return out;
+    }
 
-      if (var5 == null) {
-         if (Files.exists(var0.resolve("common").resolve("mod.info"))) {
-            var5 = var0.resolve("common");
-         } else {
-            if (!Files.exists(var0.resolve("mod.info"))) {
-               return null;
+    static List<String> parseModIds(String desc) {
+        LinkedHashSet<String> s = new LinkedHashSet<>();
+        desc = desc.replaceAll("\\[/?[a-zA-Z0-9*]+(=[^\\]]*)?\\]", "");
+        Matcher m = Pattern.compile("(?im)Mod\\s*IDs?\\s*:\\s*([^\\r\\n\\[]+)").matcher(desc);
+        while (m.find()) for (String x : m.group(1).split("[,;|]")) {
+            String t = x.trim().replaceAll("\\(.*?\\)", "").replaceAll("[\\s*]+$", "").trim();
+            if (t.matches("[A-Za-z0-9_\\-.\\\\ ']{1,80}") && !t.isEmpty() && !t.contains("Workshop")) s.add(t.replaceFirst("^\\\\", ""));
+        }
+        return new ArrayList<>(s);
+    }
+
+    /** Full item info including "Required items" parsed from the public page. */
+    Map<String, Object> item(String id) throws IOException, InterruptedException {
+        List<Map<String, Object>> d = details(List.of(id));
+        if (d.isEmpty()) throw new IOException("Предмет " + id + " не найден");
+        Map<String, Object> m = new LinkedHashMap<>(d.get(0));
+        List<String> req = new ArrayList<>();
+        try {
+            String html = Util.httpGet("https://steamcommunity.com/sharedfiles/filedetails/?id=" + id);
+            int a = html.indexOf("requiredItemsContainer");
+            if (a >= 0) {
+                int b = html.indexOf("workshopItemDescription", a);
+                String part = html.substring(a, b > a ? Math.min(b, a + 12000) : Math.min(html.length(), a + 6000));
+                Matcher mm = Pattern.compile("filedetails/\\?id=(\\d+)").matcher(part);
+                while (mm.find()) if (!req.contains(mm.group(1)) && !mm.group(1).equals(id)) req.add(mm.group(1));
             }
-
-            var5 = var0;
-         }
-      }
-
-      HashMap<String, String> var21 = new HashMap<>();
-      HashMap<String, List<String>> var22 = new HashMap<>();
-
-      try {
-         for (String var13 : Util.readText(var5.resolve("mod.info")).split("\r?\n")) {
-            int var14 = var13.indexOf(61);
-            if (var14 > 0) {
-               String var15 = var13.substring(0, var14).trim();
-               String var16 = var13.substring(var14 + 1).trim();
-               var21.putIfAbsent(var15, var16);
-               var22.computeIfAbsent(var15, var0x -> new ArrayList<>()).add(var16);
-            }
-         }
-      } catch (IOException var18) {
-         return null;
-      }
-
-      String var24 = (String)var21.get("id");
-      if (var24 != null && !var24.isBlank()) {
-         boolean var26 = Files.isDirectory(var5.resolve("media").resolve("java")) || Files.isDirectory(var0.resolve("common").resolve("media").resolve("java"));
-         return new Mods.ModInfo(
-            var24.trim(),
-            var21.getOrDefault("name", var24),
-            var1,
-            var0.getFileName().toString(),
-            var5.getFileName().toString(),
-            list((List<String>)var22.get("require")),
-            list((List<String>)var22.get("loadModAfter")),
-            list((List<String>)var22.get("loadModBefore")),
-            list((List<String>)var22.get("incompatible")),
-            var21.getOrDefault("versionMin", ""),
-            var21.getOrDefault("versionMax", ""),
-            var26,
-            Files.exists(var5.resolve("poster.png")) ? var5.resolve("poster.png").toString() : "",
-            var4
-         );
-      } else {
-         return null;
-      }
-   }
-
-   private static List<String> list(List<String> var0) {
-      ArrayList var1 = new ArrayList();
-      if (var0 == null) {
-         return var1;
-      } else {
-         for (String var3 : var0) {
-            for (String var7 : var3.split("[,;]")) {
-               String var8 = var7.trim().replaceFirst("^\\\\+", "");
-               if (!var8.isEmpty()) {
-                  var1.add(var8);
-               }
-            }
-         }
-
-         return var1;
-      }
-   }
-
-   static double parseVer(String var0) {
-      try {
-         String[] var1 = var0.trim().split("\\.");
-         double var2 = Double.parseDouble(var1[0]);
-         if (var1.length > 1) {
-            var2 += Double.parseDouble("0." + String.format("%03d", Integer.parseInt(var1[1].replaceAll("\\D", "0"))));
-         }
-
-         return var2;
-      } catch (Exception var4) {
-         return 0.0;
-      }
-   }
-
-   static List<String> splitList(String var0) {
-      ArrayList var1 = new ArrayList();
-
-      for (String var5 : var0.split(";")) {
-         String var6 = var5.trim();
-         if (!var6.isEmpty()) {
-            var1.add(var6);
-         }
-      }
-
-      return var1;
-   }
-
-   Map<String, Object> state() {
-      Path var1 = this.cfg.serverIni();
-      List var2 = splitList(Configs.iniValue(var1, "Mods"));
-      List<String> var3 = splitList(Configs.iniValue(var1, "WorkshopItems"));
-      Map<String, List<Mods.ModInfo>> var4 = this.scan();
-      HashSet<String> var5 = new HashSet<>(var3);
-      double var6 = parseVer(this.cfg.get("gameVersion", "42.21"));
-      ArrayList<Map<String, Object>> var8 = new ArrayList<>();
-      HashMap var9 = new HashMap();
-
-      for (int var10 = 0; var10 < var2.size(); var10++) {
-         var9.put(strip((String)var2.get(var10)), var10);
-      }
-
-      for (int var19 = 0; var19 < var2.size(); var19++) {
-         String var11 = (String)var2.get(var19);
-         String var12 = strip(var11);
-         Mods.ModInfo var13 = pick((List<Mods.ModInfo>)var4.get(var12), var5);
-         Map var14 = describe(var12, var13);
-         var14.put("raw", var11);
-         ArrayList var15 = new ArrayList();
-         if (var13 == null) {
-            var15.add(
-               var3.isEmpty()
-                  ? "Файлы не найдены в Zomboid/mods — моды заморожены, сервер его не скачает"
-                  : "Файлы не найдены — мод скачается при запуске сервера (если его предмет есть в списке Мастерской)"
-            );
-         } else {
-            for (String var17 : var13.require()) {
-               Integer var18 = (Integer)var9.get(var17);
-               if (var18 == null) {
-                  var15.add("Требует " + var17 + ", но он не включён");
-               } else if (var18 > var19) {
-                  var15.add("Требует " + var17 + " — он должен стоять выше");
-               }
-            }
-
-            for (String var37 : var13.loadAfter()) {
-               Integer var40 = (Integer)var9.get(var37);
-               if (var40 != null && var40 > var19) {
-                  var15.add("Должен грузиться после " + var37);
-               }
-            }
-
-            for (String var38 : var13.loadBefore()) {
-               Integer var41 = (Integer)var9.get(var38);
-               if (var41 != null && var41 < var19) {
-                  var15.add("Должен грузиться до " + var38);
-               }
-            }
-
-            for (String var39 : var13.incompatible()) {
-               if (var9.containsKey(var39)) {
-                  var15.add("Несовместим с " + var39);
-               }
-            }
-
-            if (!var13.versionMax().isBlank() && parseVer(var13.versionMax()) + 1.0E-9 < var6) {
-               var15.add("versionMax " + var13.versionMax() + " ниже версии игры");
-            }
-
-            if (!var13.local() && !var13.workshopId().isEmpty() && !var5.contains(var13.workshopId())) {
-               var15.add("Предмет Мастерской " + var13.workshopId() + " не в списке WorkshopItems — игроки его не скачают");
-            }
-         }
-
-         var14.put("issues", var15);
-         var8.add(var14);
-      }
-
-      ArrayList<Map<String, Object>> var20 = new ArrayList<>();
-
-      for (Entry<String, List<Mods.ModInfo>> var23 : var4.entrySet()) {
-         if (!var9.containsKey(var23.getKey())) {
-            Mods.ModInfo var26 = pick((List<Mods.ModInfo>)var23.getValue(), var5);
-            Map var30 = describe((String)var23.getKey(), var26);
-            var30.put("inWorkshopItems", var26 != null && var5.contains(var26.workshopId()));
-            var20.add(var30);
-         }
-      }
-
-      var20.sort(Comparator.comparing(var0 -> String.valueOf(var0.get("name")).toLowerCase(Locale.ROOT)));
-      HashSet var22 = new HashSet();
-
-      for (Map var27 : var8) {
-         var22.add(String.valueOf(var27.get("workshopId")));
-      }
-
-      ArrayList var25 = new ArrayList();
-
-      for (String var31 : var3) {
-         LinkedHashMap var32 = new LinkedHashMap();
-         var32.put("id", var31);
-         var32.put("downloaded", this.cfg.workshopDirs().stream().anyMatch(var1x -> Files.isDirectory(var1x.resolve(var31))));
-         var32.put("usedByEnabledMod", var22.contains(var31));
-         Map var36 = this.steamCache.get(var31);
-         if (var36 != null) {
-            var32.put("title", var36.get("title"));
-         }
-
-         var25.add(var32);
-      }
-
-      LinkedHashMap var29 = new LinkedHashMap();
-      var29.put("enabled", var8);
-      var29.put("available", var20);
-      var29.put("workshopItems", var25);
-      var29.put("map", Configs.iniValue(var1, "Map"));
-      return var29;
-   }
-
-   private static String strip(String var0) {
-      return var0.replaceFirst("^\\\\+", "");
-   }
-
-   private static Mods.ModInfo pick(List<Mods.ModInfo> var0, Set<String> var1) {
-      if (var0 != null && !var0.isEmpty()) {
-         for (Mods.ModInfo var3 : var0) {
-            if (var1.contains(var3.workshopId())) {
-               return var3;
-            }
-         }
-
-         return (Mods.ModInfo)var0.get(0);
-      } else {
-         return null;
-      }
-   }
-
-   private static Map<String, Object> describe(String var0, Mods.ModInfo var1) {
-      LinkedHashMap var2 = new LinkedHashMap();
-      var2.put("id", var0);
-      var2.put("name", var1 == null ? var0 : var1.name());
-      var2.put("workshopId", var1 == null ? "" : var1.workshopId());
-      var2.put("installed", var1 != null);
-      if (var1 != null) {
-         var2.put("require", var1.require());
-         var2.put("loadAfter", var1.loadAfter());
-         var2.put("versionMin", var1.versionMin());
-         var2.put("versionMax", var1.versionMax());
-         var2.put("versionDir", var1.versionDir());
-         var2.put("java", var1.java());
-         var2.put("local", var1.local());
-         var2.put("hasPoster", !var1.poster().isEmpty());
-      }
-
-      return var2;
-   }
-
-   Path posterPath(String var1) {
-      List<Mods.ModInfo> var2 = this.scan().get(var1);
-      if (var2 == null) {
-         return null;
-      } else {
-         for (Mods.ModInfo var4 : var2) {
-            if (!var4.poster().isEmpty()) {
-               return Paths.get(var4.poster());
-            }
-         }
-
-         return null;
-      }
-   }
-
-   void save(List<String> var1, List<String> var2, boolean var3) throws IOException {
-      LinkedHashMap var4 = new LinkedHashMap();
-      var4.put("Mods", String.join(";", var1));
-      var4.put("WorkshopItems", String.join(";", var2));
-      Configs.writeIni(this.cfg.serverIni(), var4, this.cfg.fileBackupDir());
-      if (var3) {
-         this.writeClientMods(var1);
-      }
-   }
-
-   void writeClientMods(List<String> var1) throws IOException {
-      Path var2 = this.cfg.clientModsFile();
-      String var3 = Files.exists(var2) ? Util.readText(var2) : "VERSION = 1,\n\nmods\n{\n}\n\nmaps\n{\n}\n";
-      String var4 = Util.lineSep(var3);
-      StringBuilder var5 = new StringBuilder("mods").append(var4).append('{').append(var4);
-
-      for (String var7 : var1) {
-         var5.append("    mod = ").append(strip(var7)).append(',').append(var4);
-      }
-
-      var5.append('}');
-      Matcher var8 = Pattern.compile("mods\\s*\\{[^}]*\\}", 32).matcher(var3);
-      String var9 = var8.find() ? var3.substring(0, var8.start()) + var5 + var3.substring(var8.end()) : var3 + var4 + var5 + var4;
-      Files.createDirectories(var2.getParent());
-      Util.writeTextWithBackup(var2, var9, this.cfg.fileBackupDir());
-   }
-
-   List<Map<String, Object>> details(Collection<String> var1) throws IOException, InterruptedException {
-      ArrayList var2 = new ArrayList();
-
-      for (String var4 : var1) {
-         if (!this.steamCache.containsKey(var4)) {
-            var2.add(var4);
-         }
-      }
-
-      for (byte var14 = 0; var14 < var2.size(); var14 += 100) {
-         List var16 = var2.subList(var14, Math.min(var2.size(), var14 + 100));
-         StringBuilder var5 = new StringBuilder("itemcount=" + var16.size());
-
-         for (int var6 = 0; var6 < var16.size(); var6++) {
-            var5.append("&publishedfileids%5B").append(var6).append("%5D=").append((String)var16.get(var6));
-         }
-
-         JsonNode var19 = Util.JSON
-            .readTree(Util.httpPostForm("https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/", var5.toString()));
-
-         for (JsonNode var8 : var19.path("response").path("publishedfiledetails")) {
-            LinkedHashMap var9 = new LinkedHashMap();
-            String var10 = var8.path("publishedfileid").asText();
-            var9.put("id", var10);
-            var9.put("ok", var8.path("result").asInt() == 1);
-            var9.put("title", var8.path("title").asText(""));
-            var9.put("preview", var8.path("preview_url").asText(""));
-            var9.put("updated", var8.path("time_updated").asLong(0L));
-            var9.put("size", var8.path("file_size").asLong(0L));
-            var9.put("subs", var8.path("lifetime_subscriptions").asLong(var8.path("subscriptions").asLong(0L)));
-            ArrayList var11 = new ArrayList();
-
-            for (JsonNode var13 : var8.path("tags")) {
-               var11.add(var13.path("tag").asText());
-            }
-
-            var9.put("tags", var11);
-            String var21 = var8.path("description").asText("");
-            var9.put("modIds", parseModIds(var21));
-            var9.put("description", var21.length() > 1500 ? var21.substring(0, 1500) + "…" : var21);
-            this.steamCache.put(var10, var9);
-         }
-      }
-
-      ArrayList var15 = new ArrayList();
-
-      for (String var18 : var1) {
-         Map var20 = this.steamCache.get(var18);
-         if (var20 != null) {
-            var15.add(var20);
-         }
-      }
-
-      return var15;
-   }
-
-   static List<String> parseModIds(String var0) {
-      LinkedHashSet var1 = new LinkedHashSet();
-      var0 = var0.replaceAll("\\[/?[a-zA-Z0-9*]+(=[^\\]]*)?\\]", "");
-      Matcher var2 = Pattern.compile("(?im)Mod\\s*IDs?\\s*:\\s*([^\\r\\n\\[]+)").matcher(var0);
-
-      while (var2.find()) {
-         for (String var6 : var2.group(1).split("[,;|]")) {
-            String var7 = var6.trim().replaceAll("\\(.*?\\)", "").replaceAll("[\\s*]+$", "").trim();
-            if (var7.matches("[A-Za-z0-9_\\-.\\\\ ']{1,80}") && !var7.isEmpty() && !var7.contains("Workshop")) {
-               var1.add(var7.replaceFirst("^\\\\", ""));
-            }
-         }
-      }
-
-      return new ArrayList<>(var1);
-   }
-
-   Map<String, Object> item(String var1) throws IOException, InterruptedException {
-      List var2 = this.details(List.of(var1));
-      if (var2.isEmpty()) {
-         throw new IOException("Предмет " + var1 + " не найден");
-      } else {
-         LinkedHashMap var3 = new LinkedHashMap((Map)var2.get(0));
-         ArrayList var4 = new ArrayList();
-
-         try {
-            String var5 = Util.httpGet("https://steamcommunity.com/sharedfiles/filedetails/?id=" + var1);
-            int var6 = var5.indexOf("requiredItemsContainer");
-            if (var6 >= 0) {
-               int var7 = var5.indexOf("workshopItemDescription", var6);
-               String var8 = var5.substring(var6, var7 > var6 ? Math.min(var7, var6 + 12000) : Math.min(var5.length(), var6 + 6000));
-               Matcher var9 = Pattern.compile("filedetails/\\?id=(\\d+)").matcher(var8);
-
-               while (var9.find()) {
-                  if (!var4.contains(var9.group(1)) && !var9.group(1).equals(var1)) {
-                     var4.add(var9.group(1));
-                  }
-               }
-            }
-
-            if (var5.contains("collectionChildren") || var5.contains("collectionItem")) {
-               var3.put("maybeCollection", true);
-            }
-         } catch (Exception var10) {
-         }
-
-         List var11 = var4.isEmpty() ? List.of() : this.details(var4);
-         var3.put("required", var11);
-         return var3;
-      }
-   }
-
-   List<Map<String, Object>> collection(String var1) throws IOException, InterruptedException {
-      JsonNode var2 = Util.JSON
-         .readTree(
-            Util.httpPostForm("https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/", "collectioncount=1&publishedfileids%5B0%5D=" + var1)
-         );
-      ArrayList var3 = new ArrayList();
-
-      for (JsonNode var5 : var2.path("response").path("collectiondetails").path(0).path("children")) {
-         var3.add(var5.path("publishedfileid").asText());
-      }
-
-      if (var3.isEmpty()) {
-         throw new IOException("Коллекция пуста или не найдена");
-      } else {
-         return this.details(var3);
-      }
-   }
-
-   List<Map<String, Object>> search(String var1, int var2) throws IOException, InterruptedException {
-      String var3 = "https://steamcommunity.com/workshop/browse/?appid=108600&searchtext="
-         + URLEncoder.encode(var1, StandardCharsets.UTF_8)
-         + "&childpublishedfileid=0&browsesort=textsearch&section=readytouseitems&actualsort=textsearch&p="
-         + Math.max(1, var2);
-      String var4 = Util.httpGet(var3);
-      LinkedHashSet var5 = new LinkedHashSet();
-      Matcher var6 = Pattern.compile("sharedfiles/filedetails/\\?id=(\\d+)").matcher(var4);
-
-      while (var6.find()) {
-         var5.add(var6.group(1));
-      }
-
-      return var5.isEmpty() ? List.of() : this.details(new ArrayList<>(var5).subList(0, Math.min(var5.size(), 30)));
-   }
-
-   record ModInfo(
-      String id,
-      String name,
-      String workshopId,
-      String folder,
-      String versionDir,
-      List<String> require,
-      List<String> loadAfter,
-      List<String> loadBefore,
-      List<String> incompatible,
-      String versionMin,
-      String versionMax,
-      boolean java,
-      String poster,
-      boolean local
-   ) {
-   }
+            if (html.contains("collectionChildren") || html.contains("collectionItem")) m.put("maybeCollection", true);
+        } catch (Exception ignored) {}
+        List<Map<String, Object>> reqd = req.isEmpty() ? List.of() : details(req);
+        m.put("required", reqd);
+        return m;
+    }
+
+    List<Map<String, Object>> collection(String id) throws IOException, InterruptedException {
+        JsonNode root = Util.JSON.readTree(Util.httpPostForm("https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/",
+                "collectioncount=1&publishedfileids%5B0%5D=" + id));
+        List<String> kids = new ArrayList<>();
+        for (JsonNode c : root.path("response").path("collectiondetails").path(0).path("children")) kids.add(c.path("publishedfileid").asText());
+        if (kids.isEmpty()) throw new IOException("Коллекция пуста или не найдена");
+        return details(kids);
+    }
+
+    List<Map<String, Object>> search(String q, int page) throws IOException, InterruptedException {
+        String url = "https://steamcommunity.com/workshop/browse/?appid=108600&searchtext=" + URLEncoder.encode(q, StandardCharsets.UTF_8)
+                + "&childpublishedfileid=0&browsesort=textsearch&section=readytouseitems&actualsort=textsearch&p=" + Math.max(1, page);
+        String html = Util.httpGet(url);
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        Matcher m = Pattern.compile("sharedfiles/filedetails/\\?id=(\\d+)").matcher(html);
+        while (m.find()) ids.add(m.group(1));
+        if (ids.isEmpty()) return List.of();
+        return details(new ArrayList<>(ids).subList(0, Math.min(ids.size(), 30)));
+    }
 }

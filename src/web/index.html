@@ -23,7 +23,6 @@
     <div class="brand"><span class="logo">☣</span><div><b id="brandName">PZ Panel</b><small id="brandSub">сервер</small></div></div>
     <nav id="nav">
       <a data-tab="overview" class="active">Обзор и консоль</a>
-      <a data-tab="worlds">Миры</a>
       <a data-tab="map">Карта</a>
       <a data-tab="players">Игроки</a>
       <a data-tab="mods">Моды</a>
@@ -245,47 +244,6 @@
         <div class="muted small" id="zbPath"></div>
         <div class="muted small">Общий файл для игры и сервера на этом ПК. После обновления мода его хэш меняется, и ZombieBuddy спросит снова.</div>
         <div class="tablewrap"><table id="zbTable" class="table"></table></div>
-      </div>
-    </section>
-
-    <!-- WORLDS -->
-    <section id="tab-worlds" class="tab hidden">
-      <div class="card">
-        <div class="row between wrap gap">
-          <h3>Миры сервера</h3>
-          <div class="row wrap gap">
-            <label class="muted small" title="Перед сбросом, удалением и восстановлением панель делает zip-бэкап мира"><input type="checkbox" id="wBackup" checked> бэкап перед сбросом и удалением</label>
-            <button class="btn" id="wReload">Обновить</button>
-            <button class="btn primary" id="wNewBtn">+ Новый мир</button>
-          </div>
-        </div>
-        <div class="muted small" id="wInfo"></div>
-        <div id="wWarn"></div>
-        <div id="wProgress" class="small"></div>
-        <div id="wNew" class="wnew hidden">
-          <h4>Новый мир</h4>
-          <div class="form">
-            <div class="k">Имя<small>латиница, цифры, _ и -; это -servername и имена файлов</small></div>
-            <div><input id="wName" placeholder="Например, Banda2" maxlength="48"></div>
-            <div class="k">Что взять<small></small></div>
-            <div><select id="wMode">
-              <option value="settings">настройки другого мира, мир и аккаунты с нуля</option>
-              <option value="full">полную копию другого мира (сохранение и аккаунты тоже)</option>
-              <option value="default">ничего: сервер создаст настройки по умолчанию</option>
-            </select></div>
-            <div class="k" id="wFromK">Из мира<small>ini (моды, порты, пароли), песочница, точки появления</small></div>
-            <div id="wFromV"><select id="wFrom"></select></div>
-            <div class="k">После создания<small></small></div>
-            <div><label><input type="checkbox" id="wActivate"> сразу сделать активным (сервер должен быть остановлен)</label></div>
-          </div>
-          <div class="row gap mt"><button class="btn primary" id="wCreate">Создать</button><button class="btn" id="wCancel">Отмена</button><span class="muted small" id="wHint"></span></div>
-        </div>
-        <div class="tablewrap mt"><table id="wTable" class="table"></table></div>
-      </div>
-      <div class="card" id="wOrphCard">
-        <h3>Сохранения без настроек</h3>
-        <div class="muted small">Папки в Saves/Multiplayer, для которых нет &lt;имя&gt;.ini: переименованные вручную старые миры и сохранения с чужих серверов, куда вы заходили как игрок (имя вида IP_порт_…). Старый мир можно снова сделать миром — панель добавит ему настройки другого мира.</div>
-        <div class="tablewrap"><table id="wOrph" class="table"></table></div>
       </div>
     </section>
 

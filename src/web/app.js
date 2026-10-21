@@ -863,128 +863,13 @@ async function loadZb() {
 }
 loaders.zb = loadZb;
 
-// ---------------- worlds ----------------
-let wState = null;
-async function loadWorlds() {
-  try { wState = await api('/api/worlds'); } catch (e) { toast(e.message, true); return; }
-  const r = wState, srvRunning = !!r.running;
-  $('#wInfo').innerHTML = `Активный мир: <b>${esc(r.active)}</b>` + (r.running ? ` · запущен: <b>${esc(r.running)}</b>` : ' · сервер остановлен') +
-    `<br>Конфиги: ${esc(r.serverDir)} · сохранения: ${esc(r.savesDir)}`;
-  const warn = [];
-  if (r.scriptWorld && r.scriptWorld !== r.active) warn.push(`В ${esc(r.startScript)} прописан <b>-servername ${esc(r.scriptWorld)}</b>, а активный мир — <b>${esc(r.active)}</b>. Сделайте нужный мир активным ещё раз, и панель исправит скрипт.`);
-  if (r.running && r.running !== r.active) warn.push(`Сейчас работает мир <b>${esc(r.running)}</b>, а активным выбран <b>${esc(r.active)}</b>: он запустится после перезапуска сервера.`);
-  $('#wWarn').innerHTML = warn.map(w => `<div class="banner mt">${w}</div>`).join('');
-  $('#wProgress').textContent = r.progress || '';
-  $('#wProgress').className = 'small' + (/^Ошибка/.test(r.progress) ? ' err' : '');
-  const withIni = r.worlds.filter(w => w.hasIni).map(w => w.name);
-  const prevFrom = $('#wFrom').value;
-  $('#wFrom').innerHTML = withIni.map(n => `<option${n === (prevFrom || r.active) ? ' selected' : ''}>${esc(n)}</option>`).join('');
-  $('#wTable').innerHTML = '<tr><th>Мир</th><th>Настройки</th><th>Сохранение</th><th>Бэкапы</th><th></th></tr>' + r.worlds.map(w => {
-    const badges = (w.active ? '<span class="badge sm on">активный</span>' : '') + (w.running ? '<span class="badge sm mid">запущен</span>' : '');
-    const settings = w.hasIni
-      ? [w.publicName && w.publicName !== w.name ? 'название «' + w.publicName + '»' : '', 'порт ' + (w.port || '16261'), (w.mods || 0) + ' модов', w.maxPlayers ? 'до ' + w.maxPlayers + ' игроков' : '', w.pvp === 'true' ? 'PvP' : 'без PvP', w.password ? 'с паролем' : '', w.map && w.map !== 'Muldraugh, KY' ? 'карта: ' + w.map : '', w.hasSandbox ? '' : 'нет песочницы']
-          .filter(Boolean).map(esc).join(' · ')
-      : '<span class="muted">нет ' + esc(w.name) + '.ini — сервер создаст настройки по умолчанию при первом запуске</span>';
-    const save = w.hasSave
-      ? fmtSize(w.size) + (w.lastSave ? ' · сохранён ' + ago(w.lastSave) : '') + (w.hasAccounts ? '' : ' · <span class="muted">нет базы аккаунтов</span>')
-      : '<span class="muted">ещё не создан' + (w.hasAccounts ? ' (аккаунты есть)' : '') + '</span>';
-    const busy = r.busy, runHere = w.running, n = esc(w.name);
-    const btn = (a, label, dis, cls = '', title = '') => `<button class="btn sm ${cls}" data-w="${a}" data-n="${n}"${dis ? ' disabled' : ''}${title ? ` title="${esc(title)}"` : ''}>${label}</button>`;
-    return `<tr class="${w.active ? 'wactive' : ''}"><td><span class="wname">${n}</span>${badges}</td><td class="small">${settings}</td><td class="small">${save}</td><td class="small">${w.backups || '—'}</td><td><div class="wbtns">
-      ${w.active ? '' : btn('activate', 'Сделать активным', busy || srvRunning, '', srvRunning ? 'Сначала остановите сервер' : '')}
-      ${w.hasSave ? btn('backup', 'Бэкап', busy) : ''}
-      ${w.hasIni ? btn('copy', 'Копия…', busy) : ''}
-      ${w.hasSave || w.hasAccounts ? btn('wipe', 'Сбросить…', busy || runHere, 'danger', runHere ? 'Сначала остановите сервер' : 'Удалить сохранение, оставить настройки') : ''}
-      ${w.validName ? btn('rename', 'Переименовать…', busy || runHere || (w.active && srvRunning)) : ''}
-      ${w.active ? '' : btn('delete', 'Удалить…', busy || runHere, 'danger')}
-    </div></td></tr>`;
-  }).join('');
-  $$('#wTable [data-w]').forEach(b => b.onclick = () => worldAction(b.dataset.w, b.dataset.n));
-  const orph = r.orphans;
-  $('#wOrphCard').classList.toggle('hidden', !orph.length);
-  $('#wOrph').innerHTML = '<tr><th>Папка</th><th>Размер</th><th>Изменена</th><th></th></tr>' + orph.map(o => `<tr><td>${esc(o.name)}${o.client ? ' <span class="tag">сохранение игрока</span>' : ''}</td><td>${fmtSize(o.size)}</td><td>${fmtTime(o.modified)}</td><td><div class="wbtns">
-      ${o.validName && !o.client ? `<button class="btn sm" data-o="adopt" data-n="${esc(o.name)}"${r.busy ? ' disabled' : ''}>Сделать миром…</button>` : ''}
-      <button class="btn sm danger" data-o="delete" data-n="${esc(o.name)}"${r.busy ? ' disabled' : ''}>Удалить…</button></div></td></tr>`).join('');
-  $$('#wOrph [data-o]').forEach(b => b.onclick = () => orphanAction(b.dataset.o, b.dataset.n));
-  if (r.busy || r.worlds.some(w => w.hasSave && w.size < 0) || orph.some(o => o.size < 0)) { clearTimeout(loadWorlds._t); loadWorlds._t = setTimeout(() => tab === 'worlds' && loadWorlds(), 1500); }
-  else if (loadWorlds._wasBusy) refreshStatus();
-  loadWorlds._wasBusy = r.busy;
-}
-async function worldCall(path, body) {
-  const r = await act(() => api(path, body));
-  await loadWorlds(); refreshStatus();
-  return r;
-}
-function worldAction(a, n) {
-  const bk = $('#wBackup').checked;
-  if (a === 'activate') {
-    if (confirm(`Сделать активным мир ${n}?\n\nПанель переключится на его конфиги и сохранение, а в скрипт запуска сервера будет прописано -servername ${n}. Затем запустите сервер.`)) worldCall('/api/worlds/activate', { name: n });
-  } else if (a === 'backup') {
-    worldCall('/api/backups/create', { world: n });
-  } else if (a === 'copy') {
-    openNewWorld({ from: n, mode: 'settings' });
-  } else if (a === 'wipe') {
-    if (!confirm(`Сбросить мир ${n}?\n\nСохранение (карта, постройки, персонажи, машины) будет удалено, настройки и моды останутся. При следующем запуске сервер создаст мир заново.` + (bk ? '\n\nПеред этим панель сделает бэкап.' : '\n\nБЭКАП НЕ ДЕЛАЕТСЯ (галочка выключена).'))) return;
-    const keep = confirm('Оставить аккаунты игроков?\n\nОК — оставить: игроки зайдут со старыми логинами и паролями, роли (admin и т.п.) сохранятся, персонажей создадут заново.\nОтмена — удалить и аккаунты: каждый зарегистрируется заново.');
-    worldCall('/api/worlds/wipe', { name: n, keepAccounts: keep, backup: bk });
-  } else if (a === 'rename') {
-    const nn = prompt(`Новое имя для мира ${n} (латиница, цифры, _ и -):`, n);
-    if (nn && nn.trim() !== n) worldCall('/api/worlds/rename', { name: n, newName: nn.trim() });
-  } else if (a === 'delete') {
-    if (!confirm(`Удалить мир ${n} целиком?\n\nБудут удалены конфиги (${n}.ini, песочница, точки появления), сохранение и база аккаунтов.` + (bk ? '\n\nПеред этим панель сделает бэкап — из него мир можно восстановить на вкладке «Бэкапы».' : '\n\nБЭКАП НЕ ДЕЛАЕТСЯ — восстановить будет нельзя.'))) return;
-    if (prompt(`Для подтверждения введите имя мира: ${n}`) !== n) return toast('Имя не совпало — ничего не удалено', true);
-    worldCall('/api/worlds/delete', { name: n, backup: bk });
-  }
-}
-function orphanAction(a, n) {
-  if (a === 'adopt') openNewWorld({ name: n, mode: 'settings' });
-  else if (a === 'delete') {
-    if (!confirm(`Удалить папку сохранения ${n}?` + ($('#wBackup').checked ? '\n\nПеред этим панель сделает бэкап (если имя папки подходит для бэкапа).' : '\n\nБез бэкапа.'))) return;
-    worldCall('/api/worlds/deleteOrphan', { name: n, backup: $('#wBackup').checked });
-  }
-}
-function openNewWorld(o = {}) {
-  $('#wNew').classList.remove('hidden');
-  $('#wName').value = o.name || '';
-  $('#wMode').value = o.mode || 'settings';
-  if (o.from) $('#wFrom').value = o.from;
-  $('#wActivate').checked = false;
-  newWorldHint();
-  $('#wName').focus();
-}
-function newWorldHint() {
-  const m = $('#wMode').value, n = $('#wName').value.trim(), orphan = wState && wState.orphans.some(o => o.name === n);
-  $('#wFromK').classList.toggle('hidden', m === 'default'); $('#wFromV').classList.toggle('hidden', m === 'default');
-  if (m === 'default') $('#wActivate').checked = true;
-  $('#wHint').textContent = orphan && m === 'settings' ? `Сохранение ${n} уже есть — к нему добавятся настройки, мир продолжится с того же места.`
-    : m === 'full' ? 'Копируются сохранение и аккаунты — может занять несколько минут.'
-    : m === 'default' ? 'Настройки появятся при первом запуске; моды и пароли потом задайте на вкладках «Моды» и «Настройки сервера».' : '';
-}
-$('#wMode').onchange = newWorldHint; $('#wName').oninput = newWorldHint;
-$('#wNewBtn').onclick = () => openNewWorld();
-$('#wCancel').onclick = () => $('#wNew').classList.add('hidden');
-$('#wReload').onclick = loadWorlds;
-$('#wCreate').onclick = async () => {
-  const body = { name: $('#wName').value.trim(), mode: $('#wMode').value, from: $('#wFrom').value, activate: $('#wActivate').checked };
-  if (!body.name) return toast('Введите имя мира', true);
-  const r = await worldCall('/api/worlds/create', body);
-  if (r) $('#wNew').classList.add('hidden');
-};
-loaders.worlds = loadWorlds;
-
 // ---------------- backups ----------------
 async function loadBk() {
   try {
-    const r = await api('/api/backups'); $('#bkInfo').textContent = 'Папка: ' + r.dir + '. В бэкап входят сохранение мира, база аккаунтов и конфиги этого мира. Кнопка «Создать бэкап» — для активного мира, остальные миры — на вкладке «Миры».';
-    $('#bkProgress').textContent = r.progress; $('#bkProgress').className = 'small' + (/^Ошибка/.test(r.progress) ? ' err' : '');
-    const busy = String(r.progress).startsWith('Идёт');
-    $('#bkTable').innerHTML = '<tr><th>Файл</th><th>Мир</th><th>Размер</th><th>Создан</th><th></th></tr>' + r.list.map(b => `<tr><td>${esc(b.name)}</td><td>${esc(b.world || '—')}</td><td>${fmtSize(b.size)}</td><td>${fmtTime(b.time)}</td><td><div class="row gap"><a class="btn sm" href="/backup/${encodeURIComponent(b.name)}">Скачать</a><button class="btn sm" data-res="${esc(b.name)}" data-w="${esc(b.world)}"${busy ? ' disabled' : ''}>Восстановить…</button><button class="btn sm danger" data-del="${esc(b.name)}">Удалить</button></div></td></tr>`).join('');
+    const r = await api('/api/backups'); $('#bkInfo').textContent = 'Папка: ' + r.dir + '. В бэкап входят мир, база аккаунтов и конфиги сервера.';
+    $('#bkProgress').textContent = r.progress;
+    $('#bkTable').innerHTML = '<tr><th>Файл</th><th>Размер</th><th>Создан</th><th></th></tr>' + r.list.map(b => `<tr><td>${esc(b.name)}</td><td>${fmtSize(b.size)}</td><td>${fmtTime(b.time)}</td><td><div class="row gap"><a class="btn sm" href="/backup/${encodeURIComponent(b.name)}">Скачать</a><button class="btn sm danger" data-del="${esc(b.name)}">Удалить</button></div></td></tr>`).join('');
     $$('#bkTable [data-del]').forEach(b => b.onclick = () => confirm('Удалить ' + b.dataset.del + '?') && act(async () => { const x = await api('/api/backups/delete', { name: b.dataset.del }); loadBk(); return x; }));
-    $$('#bkTable [data-res]').forEach(b => b.onclick = () => {
-      const w = b.dataset.w || 'из архива';
-      if (!confirm(`Восстановить мир ${w} из ${b.dataset.res}?\n\nТекущее сохранение, база аккаунтов и конфиги мира ${w} заменятся содержимым архива. Сервер с этим миром должен быть остановлен.\n\nПеред этим панель сделает бэкап текущего состояния (пометка _beforerestore).`)) return;
-      act(async () => { const x = await api('/api/backups/restore', { name: b.dataset.res, safety: true }); setTimeout(loadBk, 500); return x; });
-    });
     if (String(r.progress).startsWith('Идёт')) setTimeout(() => tab === 'backups' && loadBk(), 1500);
   } catch (e) { toast(e.message, true); }
 }
@@ -994,7 +879,7 @@ loaders.backups = loadBk;
 // ---------------- panel settings ----------------
 const SET_HELP = {
   serverDir: 'Папка Project Zomboid Dedicated Server', startScript: 'Скрипт запуска в папке сервера', zomboidDir: 'Папка Zomboid (конфиги, миры, логи)',
-  serverName: 'Активный мир (-servername): файлы <имя>.ini, <имя>_SandboxVars.lua, мир Saves/Multiplayer/<имя>. Удобнее переключать на вкладке «Миры»', bind: '127.0.0.1 — только этот ПК; 0.0.0.0 — вся сеть (нужен panelPassword)',
+  serverName: 'Имя сервера (-servername): файлы <имя>.ini, <имя>_SandboxVars.lua, мир Saves/Multiplayer/<имя>', bind: '127.0.0.1 — только этот ПК; 0.0.0.0 — вся сеть (нужен panelPassword)',
   port: 'Порт панели', panelPassword: 'Пароль входа в панель (обязателен, если bind не 127.0.0.1)', openBrowser: 'Открывать браузер при запуске панели',
   autoRestartOnCrash: 'Перезапускать сервер, если он упал (только для запущенного из панели)', autoStartServer: 'Запускать сервер вместе с панелью (для панели-службы на Linux)', stopServerOnExit: 'При закрытии панели сохранить мир и выключить сервер, запущенный из неё (для службы на Linux)', stopTimeoutSec: 'Сколько секунд ждать выключения сервера при закрытии панели', dailyRestart: 'Ежедневный перезапуск, ЧЧ:ММ (пусто — выкл)',
   restartWarnMinutes: 'За сколько минут предупреждать игроков о плановом перезапуске', gameVersion: 'Версия игры для проверки модов (versionMax)',

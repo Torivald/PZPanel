@@ -1,334 +1,216 @@
 package pzpanel;
 
-import com.sun.management.OperatingSystemMXBean;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Map.Entry;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
+/**
+ * CPU / RAM of the dedicated server: the server process plus all its descendants
+ * (cmd.exe → java.exe on Windows, bash → ProjectZomboid64 on Linux), sampled every 5 s, 30 min of history.
+ * CPU — ProcessHandle total CPU time; RAM — resident memory (Linux /proc/<pid>/status VmRSS, Windows tasklist "Mem Usage").
+ */
 final class Stats {
-   static final int PERIOD_SEC = 5;
-   static final int HISTORY = 360;
-   private final Config cfg;
-   private final Supplier<Optional<ProcessHandle>> server;
-   private final ArrayDeque<double[]> hist = new ArrayDeque<>();
-   private final Map<Long, Long> prevCpu = new HashMap<>();
-   private long prevAt = 0L;
-   private volatile Map<String, Object> last = Map.of();
-   private final OperatingSystemMXBean os;
-   private final int cores = Runtime.getRuntime().availableProcessors();
-   private long peakRss = 0L;
-   private long peakSince = 0L;
-   private long rootPid = -1L;
-   private static final Pattern XMX = Pattern.compile("-Xmx(\\d+)([kKmMgG]?)");
+    static final int PERIOD_SEC = 5, HISTORY = 360;
+    private final Config cfg;
+    private final Supplier<Optional<ProcessHandle>> server;
+    private final ArrayDeque<double[]> hist = new ArrayDeque<>();   // {epochMs, cpu% of machine, rss MB, sys cpu %, sys used MB}
+    private final Map<Long, Long> prevCpu = new HashMap<>();        // pid -> cpu nanos
+    private long prevAt = 0;
+    private volatile Map<String, Object> last = Map.of();
+    private final com.sun.management.OperatingSystemMXBean os;
+    private final int cores = Runtime.getRuntime().availableProcessors();
+    private long peakRss = 0, peakSince = 0;
+    private long rootPid = -1;
 
-   Stats(Config var1, Supplier<Optional<ProcessHandle>> var2) {
-      this.cfg = var1;
-      this.server = var2;
-      this.os = ManagementFactory.getOperatingSystemMXBean() instanceof OperatingSystemMXBean var4 ? var4 : null;
-      ScheduledExecutorService var5 = Executors.newSingleThreadScheduledExecutor(var0 -> {
-         Thread var1x = new Thread(var0, "pz-stats");
-         var1x.setDaemon(true);
-         return var1x;
-      });
-      var5.scheduleWithFixedDelay(() -> {
-         try {
-            this.sample();
-         } catch (Throwable var2x) {
-         }
-      }, 1L, 5L, TimeUnit.SECONDS);
-   }
+    Stats(Config cfg, Supplier<Optional<ProcessHandle>> server) {
+        this.cfg = cfg;
+        this.server = server;
+        java.lang.management.OperatingSystemMXBean b = ManagementFactory.getOperatingSystemMXBean();
+        os = b instanceof com.sun.management.OperatingSystemMXBean x ? x : null;
+        ScheduledExecutorService s = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "pz-stats"); t.setDaemon(true); return t; });
+        s.scheduleWithFixedDelay(() -> { try { sample(); } catch (Throwable ignored) {} }, 1, PERIOD_SEC, TimeUnit.SECONDS);
+    }
 
-   private void sample() {
-      long var1 = System.currentTimeMillis();
-      Optional var3 = this.server.get();
-      LinkedHashMap var4 = new LinkedHashMap();
-      double var5 = -1.0;
-      double var7 = -1.0;
-      double var9 = -1.0;
-      if (this.os != null) {
-         var5 = this.os.getCpuLoad() * 100.0;
-         var9 = this.os.getTotalMemorySize() / 1048576.0;
-         var7 = var9 - this.os.getFreeMemorySize() / 1048576.0;
-      }
-
-      var4.put("cores", this.cores);
-      var4.put("sysCpu", var5 < 0.0 ? null : round1(var5));
-      var4.put("sysMemTotalMb", var9 < 0.0 ? null : Math.round(var9));
-      var4.put("sysMemUsedMb", var7 < 0.0 ? null : Math.round(var7));
-      if (!var3.isEmpty() && ((ProcessHandle)var3.get()).isAlive()) {
-         ProcessHandle var11 = (ProcessHandle)var3.get();
-         ArrayList<ProcessHandle> var12 = new ArrayList<>();
-         var12.add(var11);
-         var11.descendants().forEach(var12::add);
-         HashMap<Long, Long> var13 = new HashMap<>();
-
-         for (ProcessHandle var15 : var12) {
-            var15.info().totalCpuDuration().map(Duration::toNanos).ifPresent(var2 -> var13.put(var15.pid(), var2));
-         }
-
-         Map<Long, Long> var28 = this.rssKb(var12);
-         long var29 = 0L;
-
-         for (ProcessHandle var18 : var12) {
-            var29 += var28.getOrDefault(var18.pid(), 0L);
-         }
-
-         double var30 = Double.NaN;
-         synchronized (this) {
-            if (this.rootPid != var11.pid()) {
-               this.prevCpu.clear();
-               this.prevAt = 0L;
-               this.rootPid = var11.pid();
-               this.peakRss = 0L;
-               this.peakSince = var1;
+    private void sample() {
+        long now = System.currentTimeMillis();
+        Optional<ProcessHandle> root = server.get();
+        Map<String, Object> m = new LinkedHashMap<>();
+        double sysCpu = -1, sysUsedMb = -1, sysTotalMb = -1;
+        if (os != null) {
+            sysCpu = os.getCpuLoad() * 100;
+            sysTotalMb = os.getTotalMemorySize() / 1048576.0;
+            sysUsedMb = sysTotalMb - os.getFreeMemorySize() / 1048576.0;
+        }
+        m.put("cores", cores);
+        m.put("sysCpu", sysCpu < 0 ? null : round1(sysCpu));
+        m.put("sysMemTotalMb", sysTotalMb < 0 ? null : Math.round(sysTotalMb));
+        m.put("sysMemUsedMb", sysUsedMb < 0 ? null : Math.round(sysUsedMb));
+        if (root.isEmpty() || !root.get().isAlive()) {
+            synchronized (this) { prevCpu.clear(); prevAt = 0; rootPid = -1; }
+            m.put("running", false);
+            last = m;
+            push(now, Double.NaN, Double.NaN, sysCpu, sysUsedMb);
+            return;
+        }
+        ProcessHandle r = root.get();
+        List<ProcessHandle> tree = new ArrayList<>();
+        tree.add(r);
+        r.descendants().forEach(tree::add);
+        Map<Long, Long> cpuNow = new HashMap<>();
+        for (ProcessHandle h : tree) h.info().totalCpuDuration().map(Duration::toNanos).ifPresent(n -> cpuNow.put(h.pid(), n));
+        Map<Long, Long> rss = rssKb(tree);
+        long rssKb = 0;
+        for (ProcessHandle h : tree) rssKb += rss.getOrDefault(h.pid(), 0L);
+        double cpu = Double.NaN;
+        synchronized (this) {
+            if (rootPid != r.pid()) { prevCpu.clear(); prevAt = 0; rootPid = r.pid(); peakRss = 0; peakSince = now; }
+            if (prevAt > 0 && now > prevAt) {
+                long d = 0;
+                for (Map.Entry<Long, Long> e : cpuNow.entrySet()) {
+                    Long p = prevCpu.get(e.getKey());
+                    d += Math.max(0, e.getValue() - (p == null ? 0 : p));   // a new child counts from 0
+                }
+                cpu = d / 1e6 / (now - prevAt) * 100.0 / cores;            // % of the whole machine
+                cpu = Math.min(100, Math.max(0, cpu));
             }
+            prevCpu.clear(); prevCpu.putAll(cpuNow); prevAt = now;
+            peakRss = Math.max(peakRss, rssKb);
+        }
+        double rssMb = rss.isEmpty() ? Double.NaN : rssKb / 1024.0;
+        m.put("running", true);
+        m.put("pid", r.pid());
+        m.put("processes", tree.size());
+        m.put("cpu", Double.isNaN(cpu) ? null : round1(cpu));
+        m.put("cpuCores", Double.isNaN(cpu) ? null : round1(cpu * cores / 100));
+        m.put("rssMb", Double.isNaN(rssMb) ? null : Math.round(rssMb));
+        m.put("peakRssMb", peakRss / 1024);
+        m.put("xmxMb", xmxMb(tree));
+        m.put("threads", threads(tree));
+        last = m;
+        push(now, cpu, rssMb, sysCpu, sysUsedMb);
+    }
 
-            if (this.prevAt > 0L && var1 > this.prevAt) {
-               long var20 = 0L;
+    private synchronized void push(long t, double cpu, double rssMb, double sysCpu, double sysUsed) {
+        hist.addLast(new double[]{t, cpu, rssMb, sysCpu, sysUsed});
+        while (hist.size() > HISTORY) hist.removeFirst();
+    }
 
-               for (Entry<Long, Long> var23 : var13.entrySet()) {
-                  Long var24 = this.prevCpu.get(var23.getKey());
-                  var20 += Math.max(0L, (Long)var23.getValue() - (var24 == null ? 0L : var24));
-               }
+    synchronized Map<String, Object> snapshot() {
+        Map<String, Object> m = new LinkedHashMap<>(last);
+        List<Object[]> h = new ArrayList<>();
+        for (double[] p : hist) h.add(new Object[]{(long) p[0], v1(p[1]), v0(p[2]), v1(p[3]), v0(p[4])});
+        m.put("periodSec", PERIOD_SEC);
+        m.put("history", h);
+        return m;
+    }
 
-               var30 = var20 / 1000000.0 / (var1 - this.prevAt) * 100.0 / this.cores;
-               var30 = Math.min(100.0, Math.max(0.0, var30));
+    private static Object v1(double v) { return Double.isNaN(v) || v < 0 ? null : round1(v); }
+    private static Object v0(double v) { return Double.isNaN(v) || v < 0 ? null : (Object) Math.round(v); }
+    private static double round1(double v) { return Math.round(v * 10) / 10.0; }
+
+    // ---------------- resident memory ----------------
+    private Map<Long, Long> rssKb(List<ProcessHandle> tree) {
+        Map<Long, Long> out = new HashMap<>();
+        if (!Util.isWindows()) {
+            for (ProcessHandle h : tree) {
+                Long v = procStatus(h.pid(), "VmRSS");
+                if (v != null) out.put(h.pid(), v);
             }
-
-            this.prevCpu.clear();
-            this.prevCpu.putAll(var13);
-            this.prevAt = var1;
-            this.peakRss = Math.max(this.peakRss, var29);
-         }
-
-         double var19 = var28.isEmpty() ? Double.NaN : var29 / 1024.0;
-         var4.put("running", true);
-         var4.put("pid", var11.pid());
-         var4.put("processes", var12.size());
-         var4.put("cpu", Double.isNaN(var30) ? null : round1(var30));
-         var4.put("cpuCores", Double.isNaN(var30) ? null : round1(var30 * this.cores / 100.0));
-         var4.put("rssMb", Double.isNaN(var19) ? null : Math.round(var19));
-         var4.put("peakRssMb", this.peakRss / 1024L);
-         var4.put("xmxMb", this.xmxMb(var12));
-         var4.put("threads", this.threads(var12));
-         this.last = var4;
-         this.push(var1, var30, var19, var5, var7);
-      } else {
-         synchronized (this) {
-            this.prevCpu.clear();
-            this.prevAt = 0L;
-            this.rootPid = -1L;
-         }
-
-         var4.put("running", false);
-         this.last = var4;
-         this.push(var1, Double.NaN, Double.NaN, var5, var7);
-      }
-   }
-
-   private synchronized void push(long var1, double var3, double var5, double var7, double var9) {
-      this.hist.addLast(new double[]{var1, var3, var5, var7, var9});
-
-      while (this.hist.size() > 360) {
-         this.hist.removeFirst();
-      }
-   }
-
-   synchronized Map<String, Object> snapshot() {
-      LinkedHashMap var1 = new LinkedHashMap<>(this.last);
-      ArrayList var2 = new ArrayList();
-
-      for (double[] var4 : this.hist) {
-         var2.add(new Object[]{(long)var4[0], v1(var4[1]), v0(var4[2]), v1(var4[3]), v0(var4[4])});
-      }
-
-      var1.put("periodSec", 5);
-      var1.put("history", var2);
-      return var1;
-   }
-
-   private static Object v1(double var0) {
-      return !Double.isNaN(var0) && !(var0 < 0.0) ? round1(var0) : null;
-   }
-
-   private static Object v0(double var0) {
-      return !Double.isNaN(var0) && !(var0 < 0.0) ? Math.round(var0) : null;
-   }
-
-   private static double round1(double var0) {
-      return Math.round(var0 * 10.0) / 10.0;
-   }
-
-   private Map<Long, Long> rssKb(List<ProcessHandle> var1) {
-      HashMap var2 = new HashMap();
-      if (!Util.isWindows()) {
-         for (ProcessHandle var16 : var1) {
-            Long var18 = procStatus(var16.pid(), "VmRSS");
-            if (var18 != null) {
-               var2.put(var16.pid(), var18);
+            return out;
+        }
+        // Windows: one tasklist call for all processes; "Mem Usage" = working set, e.g. "1 234 567 K" (separators depend on locale)
+        try {
+            Process p = new ProcessBuilder("tasklist", "/FO", "CSV", "/NH").redirectErrorStream(true).start();
+            Set<Long> want = new HashSet<>();
+            for (ProcessHandle h : tree) want.add(h.pid());
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.ISO_8859_1))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    List<String> c = csv(line);
+                    if (c.size() < 5) continue;
+                    long pid;
+                    try { pid = Long.parseLong(c.get(1).trim()); } catch (NumberFormatException e) { continue; }
+                    if (!want.contains(pid)) continue;
+                    String digits = c.get(4).replaceAll("[^0-9]", "");
+                    if (!digits.isEmpty()) out.put(pid, Long.parseLong(digits));
+                }
             }
-         }
+            p.waitFor(5, TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
+        return out;
+    }
 
-         return var2;
-      } else {
-         try {
-            Process var3 = new ProcessBuilder("tasklist", "/FO", "CSV", "/NH").redirectErrorStream(true).start();
-            HashSet var4 = new HashSet();
+    private static List<String> csv(String line) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean q = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == '"') q = !q;
+            else if (ch == ',' && !q) { out.add(cur.toString()); cur.setLength(0); }
+            else cur.append(ch);
+        }
+        out.add(cur.toString());
+        return out;
+    }
 
-            for (ProcessHandle var6 : var1) {
-               var4.add(var6.pid());
+    private static Long procStatus(long pid, String key) {
+        try {
+            for (String l : Files.readAllLines(Paths.get("/proc", String.valueOf(pid), "status"))) {
+                if (l.startsWith(key + ":")) return Long.parseLong(l.replaceAll("[^0-9]", ""));
             }
+        } catch (Exception ignored) {}
+        return null;
+    }
 
-            String var19;
-            try (BufferedReader var17 = new BufferedReader(new InputStreamReader(var3.getInputStream(), StandardCharsets.ISO_8859_1))) {
-               while ((var19 = var17.readLine()) != null) {
-                  List var7 = csv(var19);
-                  if (var7.size() >= 5) {
-                     long var8;
-                     try {
-                        var8 = Long.parseLong(((String)var7.get(1)).trim());
-                     } catch (NumberFormatException var12) {
-                        continue;
-                     }
+    private Integer threads(List<ProcessHandle> tree) {
+        if (Util.isWindows()) return null;
+        int n = 0;
+        for (ProcessHandle h : tree) { Long v = procStatus(h.pid(), "Threads"); if (v != null) n += v; }
+        return n;
+    }
 
-                     if (var4.contains(var8)) {
-                        String var10 = ((String)var7.get(4)).replaceAll("[^0-9]", "");
-                        if (!var10.isEmpty()) {
-                           var2.put(var8, Long.parseLong(var10));
-                        }
-                     }
-                  }
-               }
+    // ---------------- Java heap limit (-Xmx) ----------------
+    private static final Pattern XMX = Pattern.compile("-Xmx(\\d+)([kKmMgG]?)");
+
+    private Long xmxMb(List<ProcessHandle> tree) {
+        for (ProcessHandle h : tree) {
+            String cl = h.info().commandLine().orElse("");
+            if (cl.isEmpty() && !Util.isWindows()) {
+                try { cl = new String(Files.readAllBytes(Paths.get("/proc", String.valueOf(h.pid()), "cmdline")), StandardCharsets.UTF_8).replace('\0', ' '); } catch (Exception ignored) {}
             }
-
-            var3.waitFor(5L, TimeUnit.SECONDS);
-         } catch (Exception var14) {
-         }
-
-         return var2;
-      }
-   }
-
-   private static List<String> csv(String var0) {
-      ArrayList var1 = new ArrayList();
-      StringBuilder var2 = new StringBuilder();
-      boolean var3 = false;
-
-      for (int var4 = 0; var4 < var0.length(); var4++) {
-         char var5 = var0.charAt(var4);
-         if (var5 == '"') {
-            var3 = !var3;
-         } else if (var5 == ',' && !var3) {
-            var1.add(var2.toString());
-            var2.setLength(0);
-         } else {
-            var2.append(var5);
-         }
-      }
-
-      var1.add(var2.toString());
-      return var1;
-   }
-
-   private static Long procStatus(long var0, String var2) {
-      try {
-         for (String var4 : Files.readAllLines(Paths.get("/proc", String.valueOf(var0), "status"))) {
-            if (var4.startsWith(var2 + ":")) {
-               return Long.parseLong(var4.replaceAll("[^0-9]", ""));
-            }
-         }
-      } catch (Exception var5) {
-      }
-
-      return null;
-   }
-
-   private Integer threads(List<ProcessHandle> var1) {
-      if (Util.isWindows()) {
-         return null;
-      } else {
-         int var2 = 0;
-
-         for (ProcessHandle var4 : var1) {
-            Long var5 = procStatus(var4.pid(), "Threads");
-            if (var5 != null) {
-               var2 = (int)(var2 + var5);
-            }
-         }
-
-         return var2;
-      }
-   }
-
-   private Long xmxMb(List<ProcessHandle> var1) {
-      for (ProcessHandle var3 : var1) {
-         String var4 = var3.info().commandLine().orElse("");
-         if (var4.isEmpty() && !Util.isWindows()) {
+            Long v = parseXmx(cl);
+            if (v != null) return v;
+        }
+        // The Windows JDK does not expose other processes' arguments: read the launch files instead
+        Path dir = cfg.serverDir();
+        for (String f : new String[]{cfg.get("startScript"), "ProjectZomboid64.json", "StartServer64.bat", "start-server.sh"}) {
             try {
-               var4 = new String(Files.readAllBytes(Paths.get("/proc", String.valueOf(var3.pid()), "cmdline")), StandardCharsets.UTF_8).replace('\u0000', ' ');
-            } catch (Exception var10) {
-            }
-         }
+                Path p = dir.resolve(f);
+                if (Files.isRegularFile(p)) {
+                    Long v = parseXmx(Files.readString(p, StandardCharsets.ISO_8859_1));
+                    if (v != null) return v;
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
 
-         Long var5 = parseXmx(var4);
-         if (var5 != null) {
-            return var5;
-         }
-      }
-
-      Path var11 = this.cfg.serverDir();
-
-      for (String var6 : new String[]{this.cfg.get("startScript"), "ProjectZomboid64.json", "StartServer64.bat", "start-server.sh"}) {
-         try {
-            Path var7 = var11.resolve(var6);
-            if (Files.isRegularFile(var7)) {
-               Long var8 = parseXmx(Files.readString(var7, StandardCharsets.ISO_8859_1));
-               if (var8 != null) {
-                  return var8;
-               }
-            }
-         } catch (Exception var9) {
-         }
-      }
-
-      return null;
-   }
-
-   private static Long parseXmx(String var0) {
-      Matcher var1 = XMX.matcher(var0);
-      if (!var1.find()) {
-         return null;
-      } else {
-         long var2 = Long.parseLong(var1.group(1));
-         String var4 = var1.group(2).toLowerCase(Locale.ROOT);
-
-         return switch (var4) {
-            case "g" -> var2 * 1024L;
-            case "k" -> var2 / 1024L;
-            case "m" -> var2;
-            default -> var2 / 1048576L;
-         };
-      }
-   }
+    private static Long parseXmx(String s) {
+        Matcher m = XMX.matcher(s);
+        if (!m.find()) return null;
+        long n = Long.parseLong(m.group(1));
+        return switch (m.group(2).toLowerCase(Locale.ROOT)) {
+            case "g" -> n * 1024;
+            case "k" -> n / 1024;
+            case "m" -> n;
+            default -> n / 1048576;
+        };
+    }
 }
