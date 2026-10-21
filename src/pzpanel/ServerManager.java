@@ -292,7 +292,21 @@ final class ServerManager {
 
    synchronized String start() throws IOException {
       if (this.remote()) {
-         throw new IOException("Сервер в отдельном контейнере (serverMode=remote): запускайте его средствами контейнера (docker start / compose)");
+         String req = this.cfg.get("startRequestFile");
+         if (req.isEmpty()) {
+            throw new IOException("Сервер в отдельном контейнере (serverMode=remote): запускайте его средствами контейнера (docker start / compose) или задайте startRequestFile");
+         }
+         if (this.remoteUp()) {
+            return "Сервер уже запущен";
+         }
+         // панель не управляет контейнером сама: она лишь кладёт файл-запрос, а снаружи (systemd path unit, скрипт) выполняют docker start
+         Path f = Paths.get(req);
+         if (f.getParent() != null) {
+            Files.createDirectories(f.getParent());
+         }
+         Files.writeString(f, Instant.now().toString() + "\n");
+         this.lastAction = "Запрос на запуск " + LocalTime.now().withNano(0);
+         return "Запрос на запуск отправлен. Контейнер стартует за 1–3 минуты";
       }
       if (!this.ownedAlive() && !this.externalServer().isPresent()) {
          Path var1 = this.cfg.serverDir();
