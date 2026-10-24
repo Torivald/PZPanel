@@ -129,3 +129,5 @@ a{color:var(--accent)} a:visited{color:var(--accent)} a:hover{color:#b6e07a}
 .table tr.wactive td{background:rgba(143,192,74,.07)}
 .badge.sm{font-size:11px;padding:1px 7px;margin-left:4px}
 .legend-i{display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin:0 4px 0 8px}
+.block{display:block;margin:6px 0}
+.langsel{margin-left:auto;background:var(--card,#222);color:inherit;border:1px solid var(--line);border-radius:6px;padding:2px 4px;font-size:12px}
