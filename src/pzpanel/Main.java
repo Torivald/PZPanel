@@ -40,13 +40,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.4";
+   static final String VERSION = "1.2";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
    private final Mods mods;
-   private final ModTools modTools;
-   private final Updater updater;
    private final Backups backups;
    private final Worlds worlds;
    private final MapData mapData;
@@ -65,8 +63,6 @@ public final class Main {
       this.stats = new Stats(this.cfg, this.srv::serverHandle);
       this.players = new Players(this.cfg, this.srv);
       this.mods = new Mods(this.cfg);
-      this.updater = new Updater(this.cfg);
-      this.modTools = new ModTools(this.cfg, this.mods);
       this.backups = new Backups(this.cfg, this.srv);
       this.worlds = new Worlds(this.cfg, this.srv, this.backups, () -> {
          this.worldSize = -1L;
@@ -212,16 +208,6 @@ public final class Main {
                return;
             }
 
-            if (var4.startsWith("/modarchive/")) {
-               if (!var7) {
-                  send(var1, 401, "text/plain", new byte[0]);
-                  return;
-               }
-
-               this.downloadModArchive(var1, var4.substring(12));
-               return;
-            }
-
             if (!var4.startsWith("/backup/")) {
                this.staticFile(var1, var4.equals("/") ? "/index.html" : var4, var6 && !var7);
                return;
@@ -284,7 +270,7 @@ public final class Main {
             break;
          case "/api/server/stop":
             requirePost(var5);
-            json(var1, 200, Map.of("message", this.srv.stop(body(var1).path("force").asBoolean(false), true)));
+            json(var1, 200, Map.of("message", this.srv.stop(body(var1).path("force").asBoolean(false))));
             break;
          case "/api/server/restart":
             requirePost(var5);
@@ -350,35 +336,6 @@ public final class Main {
             } else {
                json(var1, 200, this.mods.state());
             }
-            break;
-         case "/api/mods/sort":
-            requirePost(var5);
-            JsonNode sortBody = body(var1);
-            json(var1, 200, this.modTools.sort(strings(sortBody.path("mods")), sortBody.path("mode").asText("fix")));
-            break;
-         case "/api/update/check":
-            json(var1, 200, this.updater.check("1".equals(query(var1).get("force"))));
-            break;
-         case "/api/update/install":
-            requirePost(var5);
-            json(var1, 200, Map.of("message", this.updater.install()));
-            break;
-         case "/api/mods/frozen":
-            json(var1, 200, this.modTools.archivesState());
-            break;
-         case "/api/mods/pack":
-            if (var5) {
-               JsonNode packBody = body(var1);
-               String scope = packBody.path("scope").asText("one");
-               json(var1, 200, Map.of("job", this.modTools.startPack(scope, packBody.path("key").asText(""))));
-            } else {
-               json(var1, 200, this.modTools.job(var4.getOrDefault("job", "")));
-            }
-            break;
-         case "/api/mods/archive/delete":
-            requirePost(var5);
-            this.modTools.deleteArchive(body(var1).path("name").asText());
-            json(var1, 200, Map.of("message", "Архив удалён"));
             break;
          case "/api/workshop/search":
             json(var1, 200, this.mods.search(var4.getOrDefault("q", ""), (int)parseLong((String)var4.get("page"), 1L)));
@@ -799,21 +756,6 @@ public final class Main {
          }
       } else {
          send(var1, 400, "text/plain", new byte[0]);
-      }
-   }
-
-   private void downloadModArchive(HttpExchange var1, String var2) throws IOException {
-      var2 = URLDecoder.decode(var2, StandardCharsets.UTF_8);
-      Path var3 = this.modTools.archiveFile(var2);
-      if (var3 == null) {
-         send(var1, 404, "text/plain", new byte[0]);
-         return;
-      }
-      var1.getResponseHeaders().add("Content-Disposition", "attachment; filename=\"" + var2 + "\"");
-      var1.getResponseHeaders().add("Content-Type", "application/zip");
-      var1.sendResponseHeaders(200, Files.size(var3));
-      try (OutputStream var4 = var1.getResponseBody()) {
-         Files.copy(var3, var4);
       }
    }
 

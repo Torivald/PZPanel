@@ -19,10 +19,10 @@ function toast(msg, err) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), err ? 7000 : 3500);
 }
 async function act(fn) { try { const r = await fn(); if (r && r.message) toast(r.message); return r; } catch (e) { toast(e.message, true); } }
-const fmtDur = s => { s = Math.floor(s); const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); const U = LANG === 'en' ? ['d ', 'h ', 'm'] : ['д ', 'ч ', 'м']; return (d ? d+U[0] : '') + (h ? h+U[1] : '') + m + U[2]; };
-const fmtTime = ms => ms ? new Date(ms).toLocaleString(LOCALE) : '—';
+const fmtDur = s => { s = Math.floor(s); const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); return (d ? d+'д ' : '') + (h ? h+'ч ' : '') + m + 'м'; };
+const fmtTime = ms => ms ? new Date(ms).toLocaleString('ru-RU') : '—';
 const fmtSize = b => b < 0 ? '…' : b > 1<<30 ? (b/(1<<30)).toFixed(1)+' ГБ' : (b/(1<<20)).toFixed(0)+' МБ';
-const ago = ms => { if (!ms) return '—'; const s = (Date.now()-ms)/1000; const en = LANG === 'en'; return s < 60 ? (en ? 'just now' : 'только что') : s < 3600 ? Math.floor(s/60)+(en ? ' min ago' : ' мин назад') : s < 86400 ? Math.floor(s/3600)+(en ? ' h ago' : ' ч назад') : Math.floor(s/86400)+(en ? ' d ago' : ' д назад'); };
+const ago = ms => { if (!ms) return '—'; const s = (Date.now()-ms)/1000; return s < 60 ? 'только что' : s < 3600 ? Math.floor(s/60)+' мин назад' : s < 86400 ? Math.floor(s/3600)+' ч назад' : Math.floor(s/86400)+' д назад'; };
 
 // ---------------- login ----------------
 function showLogin() { $('#login').classList.remove('hidden'); }
@@ -353,7 +353,7 @@ const map = (() => {
       placed.push([sx, sy]);
       let a = a0; if (a > Math.PI / 2) a -= Math.PI; if (a < -Math.PI / 2) a += Math.PI;
       ctx.save(); ctx.translate(sx, sy); ctx.rotate(a);
-      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(tr(name), 0, 0); ctx.fillStyle = '#ffe9b0'; ctx.fillText(tr(name), 0, 0);
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(name, 0, 0); ctx.fillStyle = '#ffe9b0'; ctx.fillText(name, 0, 0);
       ctx.restore();
     }
     ctx.restore();
@@ -376,7 +376,7 @@ const map = (() => {
       ctx.font = '700 10px Segoe UI, sans-serif'; ctx.fillStyle = '#111'; ctx.fillText(c.icon, sx, sy + 0.5);
       if (lab) {
         const t = ruRoom(rt[p[6][0]]);
-        ctx.font = '600 11px Segoe UI, sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(tr(t), sx, sy + 17); ctx.fillStyle = '#fff'; ctx.fillText(tr(t), sx, sy + 17);
+        ctx.font = '600 11px Segoe UI, sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(t, sx, sy + 17); ctx.fillStyle = '#fff'; ctx.fillText(t, sx, sy + 17);
       }
       poiHits.push({ p, sx, sy });
     }
@@ -390,7 +390,7 @@ const map = (() => {
     for (const [name, x, y] of mapData.towns) {
       const [sx, sy] = toScreen(x, y);
       if (sx < -200 || sy < -50 || sx > w + 200 || sy > h + 50) continue;
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(tr(name), sx, sy); ctx.fillStyle = '#fff6d6'; ctx.fillText(tr(name), sx, sy);
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.strokeText(name, sx, sy); ctx.fillStyle = '#fff6d6'; ctx.fillText(name, sx, sy);
     }
     ctx.restore();
   }
@@ -410,7 +410,7 @@ const map = (() => {
         const t = c.username + (c.character ? ' · ' + c.character : '');
         ctx.font = '700 12px Segoe UI, sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)';
         ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-        ctx.strokeText(tr(t), sx + 11, sy + 4); ctx.fillStyle = '#fff'; ctx.fillText(tr(t), sx + 11, sy + 4);
+        ctx.strokeText(t, sx + 11, sy + 4); ctx.fillStyle = '#fff'; ctx.fillText(t, sx + 11, sy + 4);
       }
     }
   }
@@ -575,7 +575,7 @@ const map = (() => {
       if (d.status !== 'ready') { st.textContent = 'Слои карты недоступны: ' + (d.error || d.status); return; }
       mapData = d;
       streetBox = d.streets.map(stt => { const p = stt[2]; let a = 1e9, b = 1e9, c = -1e9, e = -1e9; for (let k = 0; k < p.length; k += 2) { a = Math.min(a, p[k]); c = Math.max(c, p[k]); b = Math.min(b, p[k + 1]); e = Math.max(e, p[k + 1]); } return [a, b, c, e]; });
-      st.textContent = `Зданий: ${d.buildingsTotal.toLocaleString(LOCALE)}, точек интереса: ${d.pois.length.toLocaleString(LOCALE)}, улиц: ${new Set(d.streets.map(x => x[0])).size}`;
+      st.textContent = `Зданий: ${d.buildingsTotal.toLocaleString('ru-RU')}, точек интереса: ${d.pois.length.toLocaleString('ru-RU')}, улиц: ${new Set(d.streets.map(x => x[0])).size}`;
       renderCats(); draw();
     } catch (e) { st.textContent = 'Слои карты недоступны: ' + e.message; }
   }
@@ -601,7 +601,7 @@ function renderCats() {
   const on = new Set(mapState.cats);
   catOn = 0; mapData.cats.forEach((c, i) => { if (on.has(c.id)) catOn |= 1 << i; });
   $('#mCats').innerHTML = mapData.cats.filter(c => c.count).map(c => `<label><input type="checkbox" data-c="${c.id}"${on.has(c.id) ? ' checked' : ''}> <span class="sw round" style="background:${c.color}"></span>${esc(c.label)} <small class="muted">${c.count}</small></label>`).join('');
-  $('#poiCount').textContent = mapData.pois.length.toLocaleString(LOCALE);
+  $('#poiCount').textContent = mapData.pois.length.toLocaleString('ru-RU');
   $$('#mCats input').forEach(i => i.onchange = () => { mapState.cats = $$('#mCats input:checked').map(x => x.dataset.c); lsSet('cats', mapState.cats); renderCats(); map.draw(); });
 }
 $('#poiAll').onclick = e => { e.preventDefault(); if (!mapData) return; mapState.cats = mapData.cats.map(c => c.id); lsSet('cats', mapState.cats); renderCats(); map.draw(); };
@@ -673,7 +673,7 @@ async function loadMods() {
   modsOrder = modsState.enabled.map(m => m.raw || m.id);
   wsItems = modsState.workshopItems.map(i => i.id);
   setDirty(false); renderMods();
-  fetchTitles(); loadArchives();
+  fetchTitles();
 }
 async function fetchTitles() {
   const need = modsState.workshopItems.filter(i => !i.title).map(i => i.id);
@@ -701,11 +701,10 @@ function renderMods() {
       <div class="info"><div class="name">${esc(m.name)}${m.java ? '<span class="tag java">Java</span>' : ''}${m.local ? '<span class="tag" title="Локальная копия в Zomboid/mods — не обновляется из Steam">' + (m.workshopId ? '📌 закреплён' : 'локальный') + '</span>' : ''}${!m.installed ? '<span class="tag">не скачан</span>' : ''}</div>
       <div class="meta">${esc(id)}${m.workshopId ? ' · <a href="https://steamcommunity.com/sharedfiles/filedetails/?id=' + esc(m.workshopId) + '" target="_blank" rel="noopener">' + esc(m.workshopId) + '</a>' : ''}${m.versionMax ? ' · до ' + esc(m.versionMax) : ''}${m.require && m.require.length ? ' · требует: ' + esc(m.require.join(', ')) : ''}</div>
       ${issues.map(x => `<div class="issue">⚠ ${esc(x)}</div>`).join('')}</div>
-      <div class="actions"><button class="btn sm" data-up="${i}" title="Выше">↑</button><button class="btn sm" data-down="${i}" title="Ниже">↓</button><button class="btn sm" data-off="${i}" title="Выключить">✕</button>${m.local ? `<button class="btn sm" data-dl="${esc(m.workshopId || 'folder:' + (m.folder || id))}" data-dlname="${esc(m.name)}" title="Скачать замороженный мод с сервера">⬇ Скачать с сервера</button>` : ''}</div></li>`;
+      <div class="actions"><button class="btn sm" data-up="${i}" title="Выше">↑</button><button class="btn sm" data-down="${i}" title="Ниже">↓</button><button class="btn sm" data-off="${i}" title="Выключить">✕</button></div></li>`;
   }).join('');
   ol.querySelectorAll('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, -1));
   ol.querySelectorAll('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down, 1));
-  ol.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => openDownload(b.dataset.dl, b.dataset.dlname));
   ol.querySelectorAll('[data-off]').forEach(b => b.onclick = () => { modsOrder.splice(+b.dataset.off, 1); setDirty(true); renderMods(); });
   let dragI = null;
   ol.querySelectorAll('li').forEach(li => {
@@ -752,81 +751,12 @@ function enableMod(id, ws) {
 $('#modFilter').oninput = renderMods;
 $('#modsReload').onclick = () => (!modsDirty || confirm('Отменить несохранённые изменения?')) && loadMods();
 $('#modsSave').onclick = () => act(async () => { const r = await api('/api/mods', { mods: modsOrder, workshopItems: wsItems, syncClient: $('#syncClient').checked }); await loadMods(); return r; });
-
-// ---------------- автосортировка ----------------
-let sortRes = null;
-$('#modsSort').onclick = () => { $('#sortPanel').classList.remove('hidden'); $('#sortResult').innerHTML = ''; $('#sortApply').disabled = true; sortRes = null; $('#sortPanel').scrollIntoView({ block: 'nearest' }); };
-$('#sortClose').onclick = () => $('#sortPanel').classList.add('hidden');
-$('#sortRun').onclick = () => act(async () => {
-  const mode = document.querySelector('input[name=sortMode]:checked').value;
-  const r = await api('/api/mods/sort', { mods: modsOrder, mode });
-  sortRes = r;
-  const idx = modIndex();
-  let h = r.changed ? `<div><b>Изменится позиций: ${r.changed}</b> из ${r.order.length}</div>` : '<div><b>Порядок уже правильный — менять нечего.</b></div>';
-  if (r.moves.length) h += '<div class="small mt">Самые большие перемещения:</div><table class="table small"><tr><th>Мод</th><th>Было</th><th>Станет</th></tr>' + r.moves.slice(0, 15).map(x => `<tr><td>${esc(x.name)}</td><td>${x.from}</td><td>${x.to}</td></tr>`).join('') + '</table>';
-  if (r.cycles.length) h += `<div class="issue mt">⚠ Циклическая зависимость (эти моды и зависящие от них оставлены в конце списка, разберите вручную): ${esc(r.cycles.join(', '))}</div>`;
-  h += (r.warnings || []).slice(0, 20).map(x => `<div class="issue">⚠ ${esc(x)}</div>`).join('');
-  $('#sortResult').innerHTML = h;
-  $('#sortApply').disabled = !r.changed;
-});
-$('#sortApply').onclick = () => {
-  if (!sortRes) return;
-  modsOrder = sortRes.order.slice(); setDirty(true); renderMods();
-  $('#sortPanel').classList.add('hidden'); toast('Порядок применён — проверьте список и нажмите «Сохранить»');
-};
-
-// ---------------- скачивание замороженных модов ----------------
-let dlState = null, dlKey = '', dlTimer = 0;
-async function loadArchives() {
-  try { dlState = await api('/api/mods/frozen'); } catch (e) { return toast(e.message, true); }
-  const a = dlState.archives || [];
-  $('#arcPolicy').textContent = `Полный архив хранится в одном экземпляре (новый заменяет старый). Архив одного мода удаляется через ${dlState.singleTtlHours} ч.`;
-  $('#arcList').innerHTML = a.map(x => `<div class="it"><div>${esc(x.name)}<br><small class="muted">${fmtSize(x.size)} · ${fmtTime(x.time)}${x.kind === 'single' ? ' · удалится ' + fmtTime(x.expires) : ' · полный'}</small></div><div class="row gap"><a class="btn sm" href="/modarchive/${encodeURIComponent(x.name)}">Скачать</a><button class="btn sm danger" data-arcdel="${esc(x.name)}">Удалить</button></div></div>`).join('') || '<div class="muted small">Архивов пока нет</div>';
-  $$('#arcList [data-arcdel]').forEach(b => b.onclick = () => confirm('Удалить ' + b.dataset.arcdel + '?') && act(async () => { const r = await api('/api/mods/archive/delete', { name: b.dataset.arcdel }); loadArchives(); return r; }));
-}
-async function openDownload(key, name) {
-  await loadArchives();
-  dlKey = key;
-  const it = (dlState.items || []).find(x => x.key === key);
-  $('#dlTitle').textContent = it ? '— ' + it.title : (name ? '— ' + name : '');
-  $('#dlOneInfo').textContent = it ? `(${fmtSize(it.size)})` : '';
-  const total = (dlState.items || []).reduce((s, x) => s + x.size, 0);
-  $('#dlAllInfo').textContent = `(${(dlState.items || []).length} шт., около ${fmtSize(total)}; внутри список default.txt как на сервере)`;
-  $('#dlPolicy').textContent = `Архив одного мода удаляется с сервера через ${dlState.singleTtlHours} ч, полный архив хранится в одном экземпляре — новый заменяет прежний.`;
-  document.querySelector('input[name=dlScope][value=one]').checked = !!key;
-  document.querySelector('input[name=dlScope][value=all]').checked = !key;
-  document.querySelector('input[name=dlScope][value=one]').disabled = !key;
-  $('#dlProgress').innerHTML = ''; $('#dlRun').disabled = false;
-  $('#dlPanel').classList.remove('hidden'); $('#dlPanel').scrollIntoView({ block: 'nearest' });
-}
-$('#dlAllBtn').onclick = () => openDownload('', '');
-$('#dlClose').onclick = () => { $('#dlPanel').classList.add('hidden'); clearTimeout(dlTimer); };
-$('#dlRun').onclick = async () => {
-  const scope = document.querySelector('input[name=dlScope]:checked').value;
-  const r = await act(() => api('/api/mods/pack', { scope, key: dlKey }));
-  if (!r || !r.job) return;
-  $('#dlRun').disabled = true;
-  const poll = async () => {
-    try {
-      const j = await api('/api/mods/pack?job=' + r.job);
-      if (j.state === 'running') {
-        const pc = j.total ? Math.min(99, Math.round(j.done * 100 / j.total)) : 0;
-        $('#dlProgress').innerHTML = `Собираю архив… ${pc}% (${fmtSize(j.done)} из ${fmtSize(j.total)})`;
-        dlTimer = setTimeout(poll, 1000);
-      } else if (j.state === 'done') {
-        $('#dlProgress').innerHTML = `Готово: ${esc(j.name)} (${fmtSize(j.size)}) <a class="btn primary sm" href="/modarchive/${encodeURIComponent(j.name)}">⬇ Скачать архив</a>`;
-        $('#dlRun').disabled = false; loadArchives();
-      } else { $('#dlProgress').innerHTML = `<span class="err">Ошибка: ${esc(j.error || j.state)}</span>`; $('#dlRun').disabled = false; }
-    } catch (e) { $('#dlProgress').innerHTML = `<span class="err">${esc(e.message)}</span>`; $('#dlRun').disabled = false; }
-  };
-  poll();
-};
 function wsCard(d, opts = {}) {
   const ids = d.modIds || [];
   const have = wsItems.includes(d.id);
   return `<div class="ws" data-id="${esc(d.id)}">${d.preview ? `<img src="${esc(d.preview)}" alt="" loading="lazy">` : ''}<div class="grow">
     <div class="t"><a href="https://steamcommunity.com/sharedfiles/filedetails/?id=${esc(d.id)}" target="_blank" rel="noopener">${esc(d.title || d.id)}</a></div>
-    <div class="muted small">${esc(d.id)} · обновлён ${d.updated ? new Date(d.updated * 1000).toLocaleDateString(LOCALE) : '—'} · ${(d.size / 1048576).toFixed(1)} МБ${d.subs ? ' · ' + d.subs + ' подписок' : ''}${(d.tags || []).length ? ' · ' + esc(d.tags.join(', ')) : ''}</div>
+    <div class="muted small">${esc(d.id)} · обновлён ${d.updated ? new Date(d.updated * 1000).toLocaleDateString('ru-RU') : '—'} · ${(d.size / 1048576).toFixed(1)} МБ${d.subs ? ' · ' + d.subs + ' подписок' : ''}${(d.tags || []).length ? ' · ' + esc(d.tags.join(', ')) : ''}</div>
     <div class="ids">${ids.length ? ids.map(i => `<label><input type="checkbox" value="${esc(i)}" checked> ${esc(i)}</label>`).join('') : '<span class="muted small">Mod ID в описании не найдены — укажите вручную: </span><input class="manualId" placeholder="ModID1;ModID2" style="width:160px">'}</div>
     ${opts.required && opts.required.length ? '<div class="small mt">Требуется: ' + opts.required.map(r => `${esc(r.title)} (${esc(r.id)})${wsItems.includes(r.id) ? ' ✓' : ''}`).join(', ') + '</div>' : ''}
     <div class="row gap mt"><button class="btn sm primary" data-add="${esc(d.id)}">${have ? 'Включить отмеченные моды' : 'Добавить'}${opts.required && opts.required.length ? ' + требуемые' : ''}</button></div></div></div>`;
@@ -1107,8 +1037,8 @@ function drawLoad(cv, hist, series, maxY, fmtY, mark) {
   const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
   const span = 30 * 60 * 1000, now = Date.now(), x = t => w - (now - t) / span * w, y = v => h - 2 - v / maxY * (h - 14);
   g.strokeStyle = cssVar('--line'); g.lineWidth = 1; g.fillStyle = cssVar('--muted'); g.font = '10px system-ui';
-  for (const f of [0.5, 1]) { const yy = Math.round(y(maxY * f)) + 0.5; g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); g.fillText(tr(fmtY(maxY * f)), 2, yy - 2); }
-  if (mark) { const yy = Math.round(y(mark.v)) + 0.5; g.save(); g.setLineDash([4, 4]); g.strokeStyle = mark.color; g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); g.restore(); g.fillStyle = mark.color; g.textAlign = 'right'; g.fillText(tr(mark.label), w - 2, yy - 3); g.textAlign = 'left'; }
+  for (const f of [0.5, 1]) { const yy = Math.round(y(maxY * f)) + 0.5; g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); g.fillText(fmtY(maxY * f), 2, yy - 2); }
+  if (mark) { const yy = Math.round(y(mark.v)) + 0.5; g.save(); g.setLineDash([4, 4]); g.strokeStyle = mark.color; g.beginPath(); g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); g.restore(); g.fillStyle = mark.color; g.textAlign = 'right'; g.fillText(mark.label, w - 2, yy - 3); g.textAlign = 'left'; }
   for (const s of series) {
     g.strokeStyle = s.color; g.lineWidth = s.width || 1.5; g.beginPath(); let pen = false;
     for (const p of hist) { const v = p[s.i]; if (v == null) { pen = false; continue; } const X = x(p[0]), Y = y(Math.min(v, maxY)); pen ? g.lineTo(X, Y) : g.moveTo(X, Y); pen = true; }
@@ -1148,70 +1078,3 @@ setInterval(loadStats, 5000);
 setInterval(refreshStatus, 3000);
 setInterval(pollConsole, 1500);
 setInterval(() => { if (tab === 'map' || tab === 'players' || tab === 'overview') loadPlayers(true); }, 10000);
-
-
-// ---------------- версия, «Что нового», обновление ----------------
-(function () {
-  const WN = window.PZ_WHATSNEW || {};
-  const vkeys = Object.keys(WN);
-  const cmp = (x, y) => { const a = x.split('.').map(Number), b = y.split('.').map(Number); for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; };
-  vkeys.sort((x, y) => cmp(y, x));
-  const modal = $('#modal');
-  function openModal(title, html, buttons) {
-    $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html;
-    const bb = $('#modalBtns'); bb.innerHTML = '';
-    for (const b of buttons || []) {
-      const el = document.createElement(b.href ? 'a' : 'button'); el.className = 'btn' + (b.primary ? ' primary' : ''); el.textContent = b.text;
-      if (b.href) { el.href = b.href; el.target = '_blank'; el.rel = 'noopener'; } else el.onclick = b.onclick;
-      bb.appendChild(el);
-    }
-    modal.classList.remove('hidden');
-  }
-  const closeModal = () => modal.classList.add('hidden');
-  $('#modalX').onclick = closeModal;
-  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-  const items = (ver) => ((WN[ver] || {})[LANG] || (WN[ver] || {}).en || []);
-  function whatsNew(cur) {
-    const ver = WN[cur] ? cur : vkeys[0];
-    let html = '<div class="wnver">' + esc(ver) + '</div><ul class="wnlist">' + items(ver).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>';
-    const older = vkeys.filter(v => v !== ver && cmp(v, ver) < 0);
-    if (older.length) html += '<details><summary class="muted">Предыдущие версии</summary>' + older.map(v => '<div class="wnver">' + esc(v) + '</div><ul class="wnlist">' + items(v).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>').join('') + '</details>';
-    openModal('Что нового в версии ' + ver, html, [{ text: 'Закрыть', onclick: closeModal }]);
-  }
-  let curVer = '';
-  api('/api/status').then(s => {
-    curVer = s.panelVersion || vkeys[0] || '';
-    $('#verTxt').textContent = 'v' + curVer;
-    try { if (localStorage.getItem('pzp.seenVersion') !== curVer) { if (localStorage.getItem('pzp.seenVersion')) whatsNew(curVer); localStorage.setItem('pzp.seenVersion', curVer); } } catch (e) {}
-  }).catch(() => {});
-  $('#whatsNewBtn').onclick = () => whatsNew(curVer);
-  const notesFor = body => {
-    const parts = String(body || '').split(/^#\s*🇬🇧\s*English.*$/m);
-    let t = (LANG === 'en' && parts[1]) ? parts[1] : parts[0];
-    return t.replace(/^#\s*🇷🇺.*$/m, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[`*]/g, '').replace(/\n{3,}/g, '\n\n').trim();
-  };
-  $('#updBtn').onclick = async () => {
-    const btn = $('#updBtn'); btn.disabled = true;
-    try {
-      const r = await api('/api/update/check?force=1');
-      const info = '<span>Установлена версия:</span> <b>' + esc(r.current) + '</b> · <span>на GitHub:</span> <b>' + esc(r.latest || '—') + '</b>';
-      if (!r.newer) { openModal('Проверка обновлений', info + '<p>У вас последняя версия.</p>', [{ text: 'Закрыть', onclick: closeModal }]); return; }
-      let html = info + '<p><b>Доступна новая версия ' + esc(r.latest) + '</b></p><div class="notes">' + esc(notesFor(r.notes)) + '</div>';
-      const btns = [];
-      if (r.installable) {
-        html += '<p class="muted small">Будет скачан архив ' + esc(r.asset) + ' (' + fmtSize(r.assetSize) + ') и заменён pzpanel.jar; прежний останется как pzpanel.jar.bak. После установки перезапустите панель.</p>';
-        btns.push({ text: 'Установить обновление', primary: true, onclick: async () => {
-          if (!confirm('Установить версию ' + r.latest + '? Панель нужно будет перезапустить.')) return;
-          $('#modalBtns').innerHTML = ''; $('#modalBody').innerHTML = '<p>Скачиваю и устанавливаю…</p>';
-          try { const x = await api('/api/update/install', {}); openModal('Обновление', '<p>' + esc(x.message) + '</p>', [{ text: 'Закрыть', onclick: closeModal }]); }
-          catch (e) { openModal('Обновление', '<p class="err">' + esc(e.message) + '</p>', [{ text: 'Закрыть', onclick: closeModal }]); }
-        } });
-      } else {
-        html += '<p class="muted small">К релизу не приложен архив ' + esc(r.asset) + ' — скачайте обновление вручную со страницы релиза.</p>';
-      }
-      if (r.url) btns.push({ text: 'Страница релиза', href: r.url });
-      btns.push({ text: 'Закрыть', onclick: closeModal });
-      openModal('Доступно обновление', html, btns);
-    } catch (e) { toast(e.message, true); } finally { btn.disabled = false; }
-  };
-})();

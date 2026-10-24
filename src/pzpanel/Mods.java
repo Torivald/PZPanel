@@ -767,7 +767,6 @@ final class Mods {
       if (var1 != null) {
          var2.put("require", var1.require());
          var2.put("loadAfter", var1.loadAfter());
-         var2.put("folder", var1.folder());
          var2.put("versionMin", var1.versionMin());
          var2.put("versionMax", var1.versionMax());
          var2.put("versionDir", var1.versionDir());
