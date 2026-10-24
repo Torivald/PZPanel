@@ -2,6 +2,15 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.5
+
+- 🇷🇺 Логи панели: переключатель «Сервер / Панель» в окне консоли, журнал также пишется в `pzpanel.log`
+- 🇬🇧 Panel logs: a "Server / Panel" switch in the console window, the log is also written to `pzpanel.log`
+- 🇷🇺 Кнопка «Перезапустить панель» (systemd, `PZPanel.bat` или `panelRestart=on` при restart policy контейнера)
+- 🇬🇧 "Restart panel" button (systemd, `PZPanel.bat`, or `panelRestart=on` with a container restart policy)
+- 🇷🇺 После установки обновления панель можно перезапустить сразу
+- 🇬🇧 After installing an update the panel can be restarted right away
+
 ## 1.4
 
 - 🇷🇺 Версия панели в боковом меню и кнопка «Что нового» (на языке интерфейса)

@@ -44,6 +44,20 @@ The sidebar below the tab list shows the panel version and two buttons:
 
 ![Update check](../screenshots/update_en.png)
 
+## Panel logs and restart
+
+The console window on the main tab has a **"Server / Panel"** switch. "Panel" shows the panel's own log (start-up, errors, updates, calls to the server); it is also written to `pzpanel.log` next to `pzpanel.jar` (rotated to `pzpanel.log.1` above 2 MB). The "Clear" button wipes the log.
+
+![Panel logs](../screenshots/panel_log_en.png)
+
+The **"Restart panel"** button ends the panel process with exit code 75, and whatever starts the panel has to bring it back:
+
+- **Windows:** `PZPanel.bat` starts the panel again by itself.
+- **Linux, systemd:** `Restart=on-failure` is enough (that is what `pzpanel.service` has).
+- **Container:** set `panelRestart=on` in `panel.properties` and make sure the container has a restart policy.
+
+If nothing would start the panel again, the button says so and does nothing (`panelRestart=auto` is the default; `off` disables the button). If `stopServerOnExit` is on, restarting the panel also saves and stops the server.
+
 ## Where next
 
 | Document | What is inside |

@@ -51,6 +51,7 @@ final class Config {
       this.def("autoRestartOnCrash", "false");
       this.def("autoStartServer", "false");
       this.def("stopServerOnExit", "false");
+      this.def("panelRestart", "auto");
       this.def("dailyRestart", "");
       this.def("restartWarnMinutes", "5");
       this.def("gameVersion", "42.21");
