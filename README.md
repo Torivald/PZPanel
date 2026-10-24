@@ -5,17 +5,7 @@
 Работает на Windows и Linux (на Linux — в том числе как служба systemd).
 
 Подробная инструкция: [docs/PANEL.md](docs/PANEL.md) и руководство в Steam —
-[PZ Panel](https://steamcommunity.com/sharedfiles/filedetails/?id=3823445245).
-
-## Как это выглядит
-
-![Обзор и консоль: состояние сервера, нагрузка ЦПУ/ОЗУ, консоль](docs/screenshots/overview.png)
-
-| | |
-|---|---|
-| ![Миры](docs/screenshots/worlds.png)<br>**Миры** — несколько миров, сброс, копия, бэкап перед опасными действиями | ![Моды](docs/screenshots/mods_pin.png)<br>**Моды** — порядок перетаскиванием, Мастерская, «📌 Закрепить» |
-| ![Карта](docs/screenshots/map.png)<br>**Карта** — здания, улицы, точки интереса, поиск и телепорт | ![Игроки](docs/screenshots/players.png)<br>**Игроки** — роли, баны, последний вход |
-| ![Настройки](docs/screenshots/settings.png)<br>**Настройки сервера** | ![Песочница](docs/screenshots/sandbox.png)<br>**Песочница** |
+[PZ Panel](https://steamcommunity.com/sharedfiles/filedetails/?id=3820094636).
 
 ## Что умеет
 
