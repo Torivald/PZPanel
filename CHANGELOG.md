@@ -2,6 +2,19 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.4
+
+- 🇷🇺 Версия панели в боковом меню и кнопка «Что нового» (на языке интерфейса)
+- 🇬🇧 Panel version in the sidebar and a "What's new" button (in the interface language)
+- 🇷🇺 Кнопка «Проверить обновление»: сверяет версию с GitHub и предлагает установить новую
+- 🇬🇧 "Check for updates" button: compares the version with GitHub and offers to install a newer one
+- 🇷🇺 Установка обновления одной кнопкой (pzpanel.jar заменяется, прежний — `.bak`)
+- 🇬🇧 One-click update install (pzpanel.jar is replaced, the old one kept as `.bak`)
+- 🇷🇺 `pz-metrics.sh`: в контейнере показывает потребление всего контейнера, надёжнее находит процесс, пишет диагностику
+- 🇬🇧 `pz-metrics.sh`: inside a container shows the consumption of the whole container, finds the process more reliably, prints diagnostics
+- 🇷🇺 Исправлены мелкие неточности английского перевода интерфейса
+- 🇬🇧 Fixed small inaccuracies in the English interface translation
+
 ## 1.3
 
 - 🇷🇺 Автосортировка модов: «исправить порядок» или «по категориям и алфавиту», с предпросмотром

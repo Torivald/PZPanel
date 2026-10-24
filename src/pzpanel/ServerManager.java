@@ -406,7 +406,17 @@ final class ServerManager {
    String stop(boolean var1, boolean fromUser) throws IOException {
       if (this.remote()) {
          if (var1) {
-            throw new IOException("Принудительное завершение недоступно: сервер в другом контейнере (docker stop / kill)");
+            String killReq = this.cfg.get("killRequestFile");
+            if (killReq.isEmpty()) {
+               throw new IOException("Принудительное завершение недоступно: сервер в другом контейнере (docker stop / kill)");
+            }
+            Path kf = Paths.get(killReq);
+            if (kf.getParent() != null) {
+               Files.createDirectories(kf.getParent());
+            }
+            Files.writeString(kf, Instant.now().toString() + "\n");
+            this.lastAction = "Запрос на принудительное завершение " + LocalTime.now().withNano(0);
+            return "Запрос на принудительное завершение отправлен (внешний обработчик выполнит docker kill)";
          }
          if (!this.remoteUp()) {
             this.state = "stopped";

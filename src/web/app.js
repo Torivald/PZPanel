@@ -1148,3 +1148,70 @@ setInterval(loadStats, 5000);
 setInterval(refreshStatus, 3000);
 setInterval(pollConsole, 1500);
 setInterval(() => { if (tab === 'map' || tab === 'players' || tab === 'overview') loadPlayers(true); }, 10000);
+
+
+// ---------------- версия, «Что нового», обновление ----------------
+(function () {
+  const WN = window.PZ_WHATSNEW || {};
+  const vkeys = Object.keys(WN);
+  const cmp = (x, y) => { const a = x.split('.').map(Number), b = y.split('.').map(Number); for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; } return 0; };
+  vkeys.sort((x, y) => cmp(y, x));
+  const modal = $('#modal');
+  function openModal(title, html, buttons) {
+    $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html;
+    const bb = $('#modalBtns'); bb.innerHTML = '';
+    for (const b of buttons || []) {
+      const el = document.createElement(b.href ? 'a' : 'button'); el.className = 'btn' + (b.primary ? ' primary' : ''); el.textContent = b.text;
+      if (b.href) { el.href = b.href; el.target = '_blank'; el.rel = 'noopener'; } else el.onclick = b.onclick;
+      bb.appendChild(el);
+    }
+    modal.classList.remove('hidden');
+  }
+  const closeModal = () => modal.classList.add('hidden');
+  $('#modalX').onclick = closeModal;
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+  const items = (ver) => ((WN[ver] || {})[LANG] || (WN[ver] || {}).en || []);
+  function whatsNew(cur) {
+    const ver = WN[cur] ? cur : vkeys[0];
+    let html = '<div class="wnver">' + esc(ver) + '</div><ul class="wnlist">' + items(ver).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>';
+    const older = vkeys.filter(v => v !== ver && cmp(v, ver) < 0);
+    if (older.length) html += '<details><summary class="muted">Предыдущие версии</summary>' + older.map(v => '<div class="wnver">' + esc(v) + '</div><ul class="wnlist">' + items(v).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>').join('') + '</details>';
+    openModal('Что нового в версии ' + ver, html, [{ text: 'Закрыть', onclick: closeModal }]);
+  }
+  let curVer = '';
+  api('/api/status').then(s => {
+    curVer = s.panelVersion || vkeys[0] || '';
+    $('#verTxt').textContent = 'v' + curVer;
+    try { if (localStorage.getItem('pzp.seenVersion') !== curVer) { if (localStorage.getItem('pzp.seenVersion')) whatsNew(curVer); localStorage.setItem('pzp.seenVersion', curVer); } } catch (e) {}
+  }).catch(() => {});
+  $('#whatsNewBtn').onclick = () => whatsNew(curVer);
+  const notesFor = body => {
+    const parts = String(body || '').split(/^#\s*🇬🇧\s*English.*$/m);
+    let t = (LANG === 'en' && parts[1]) ? parts[1] : parts[0];
+    return t.replace(/^#\s*🇷🇺.*$/m, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[`*]/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  };
+  $('#updBtn').onclick = async () => {
+    const btn = $('#updBtn'); btn.disabled = true;
+    try {
+      const r = await api('/api/update/check?force=1');
+      const info = '<span>Установлена версия:</span> <b>' + esc(r.current) + '</b> · <span>на GitHub:</span> <b>' + esc(r.latest || '—') + '</b>';
+      if (!r.newer) { openModal('Проверка обновлений', info + '<p>У вас последняя версия.</p>', [{ text: 'Закрыть', onclick: closeModal }]); return; }
+      let html = info + '<p><b>Доступна новая версия ' + esc(r.latest) + '</b></p><div class="notes">' + esc(notesFor(r.notes)) + '</div>';
+      const btns = [];
+      if (r.installable) {
+        html += '<p class="muted small">Будет скачан архив ' + esc(r.asset) + ' (' + fmtSize(r.assetSize) + ') и заменён pzpanel.jar; прежний останется как pzpanel.jar.bak. После установки перезапустите панель.</p>';
+        btns.push({ text: 'Установить обновление', primary: true, onclick: async () => {
+          if (!confirm('Установить версию ' + r.latest + '? Панель нужно будет перезапустить.')) return;
+          $('#modalBtns').innerHTML = ''; $('#modalBody').innerHTML = '<p>Скачиваю и устанавливаю…</p>';
+          try { const x = await api('/api/update/install', {}); openModal('Обновление', '<p>' + esc(x.message) + '</p>', [{ text: 'Закрыть', onclick: closeModal }]); }
+          catch (e) { openModal('Обновление', '<p class="err">' + esc(e.message) + '</p>', [{ text: 'Закрыть', onclick: closeModal }]); }
+        } });
+      } else {
+        html += '<p class="muted small">К релизу не приложен архив ' + esc(r.asset) + ' — скачайте обновление вручную со страницы релиза.</p>';
+      }
+      if (r.url) btns.push({ text: 'Страница релиза', href: r.url });
+      btns.push({ text: 'Закрыть', onclick: closeModal });
+      openModal('Доступно обновление', html, btns);
+    } catch (e) { toast(e.message, true); } finally { btn.disabled = false; }
+  };
+})();

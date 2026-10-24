@@ -22,6 +22,7 @@
       const anchor = parts.filter(p => CYR.test(p)).sort((a, b) => b.length - a.length)[0] || '';
       if (!anchor) continue;
       let src = parts.map(esc).join('(.+?)');
+      if (ru.endsWith('{}')) src = src.replace(/\(\.\+\?\)$/, '(.+)'); // завершающий {} забирает остаток текста
       // короткие общие слова («Удалить», «сервер», «из {}») заменяем только когда это весь текст узла,
       // иначе они ломают длинные русские фразы
       const exact = !/^[МГКТ]Б$/.test(ru) && WORD.test(ru[0]) && parts.join('').length < 14;

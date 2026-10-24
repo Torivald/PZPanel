@@ -33,6 +33,17 @@ PZ Panel is a web panel for a Project Zomboid (Build 42) dedicated server. It is
 - **Interface language** — Russian and English, remembered per user ([details](CONFIG.md#interface-language)).
 - **Security** — password login (`panelPassword`), a CSRF token, Host header protection; by default the panel listens on `127.0.0.1` only.
 
+## Version and updates
+
+![What's new](../screenshots/whatsnew_en.png)
+
+The sidebar below the tab list shows the panel version and two buttons:
+
+- **"What's new"** — a window with the changes of the current version (and earlier ones) in the selected interface language. After an update the window opens once by itself.
+- **"Check for updates"** — the panel asks for the latest release in the GitHub repository (the server needs access to `api.github.com`) and compares it with its own version. If a new one is out it shows the notes and offers **"Install update"**: the release archive for your system is downloaded, `pzpanel.jar` is taken from it, the old one is kept as `pzpanel.jar.bak`, and you only need to restart the panel. Launch scripts and `panel.properties` are not changed. On Windows a running jar cannot be replaced — the new file waits as `pzpanel.jar.new` and is put in place on the next start of `PZPanel.bat`.
+
+![Update check](../screenshots/update_en.png)
+
 ## Where next
 
 | Document | What is inside |

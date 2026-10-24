@@ -34,6 +34,10 @@
       <a data-tab="backups">Бэкапы</a>
       <a data-tab="settings">Панель</a>
     </nav>
+    <div class="verbox">
+      <div class="verline">PZ Panel <b id="verTxt">…</b></div>
+      <div class="row gap"><button class="btn small" id="whatsNewBtn">Что нового</button><button class="btn small" id="updBtn">Проверить обновление</button></div>
+    </div>
     <div class="sidestatus"><span id="stateDot" class="dot"></span><span id="stateText">…</span>
       <select id="langSel" class="langsel" title="Язык интерфейса / Interface language"><option value="ru">Русский</option><option value="en">English</option></select></div>
   </aside>
@@ -343,7 +347,9 @@
   </main>
 </div>
 <div id="toast" class="toast hidden"></div>
+<div id="modal" class="modal hidden"><div class="modalbox"><div class="modalhead"><h3 id="modalTitle"></h3><button class="btn small" id="modalX">✕</button></div><div id="modalBody"></div><div class="row gap mt" id="modalBtns"></div></div></div>
 <script src="/lang_en.js"></script>
+<script src="/whatsnew.js"></script>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>

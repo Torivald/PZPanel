@@ -1,6 +1,18 @@
 // Английские переводы интерфейса PZ Panel: [русский текст, английский]; {} — подставляемое значение.
 // Файл подключается до i18n.js. Новую строку интерфейса достаточно добавить сюда.
 window.PZ_EN = [
+  ["Что нового","What's new"],["Проверить обновление","Check for updates"],["Что нового в версии {}","What's new in version {}"],["Предыдущие версии","Previous versions"],["Проверка обновлений","Update check"],
+["Установлена версия:","Installed version:"],["на GitHub:","on GitHub:"],["Запрос на принудительное завершение отправлен (внешний обработчик выполнит docker kill)","Force-stop request sent (an external handler will run docker kill)"],["У вас последняя версия.","You have the latest version."],["Доступна новая версия {}","A new version {} is available"],["Доступно обновление","Update available"],
+["Будет скачан архив {} ({}) и заменён pzpanel.jar; прежний останется как pzpanel.jar.bak. После установки перезапустите панель.","The archive {} ({}) will be downloaded and pzpanel.jar replaced; the old one stays as pzpanel.jar.bak. Restart the panel after installing."],
+["Установить обновление","Install update"],["Установить версию {}? Панель нужно будет перезапустить.","Install version {}? The panel will need to be restarted."],["Скачиваю и устанавливаю…","Downloading and installing…"],["Обновление","Update"],
+["К релизу не приложен архив {} — скачайте обновление вручную со страницы релиза.","The release has no archive {} — download the update manually from the release page."],["Страница релиза","Release page"],["Закрыть","Close"],
+["Установлена последняя версия ({})","The latest version is installed ({})"],
+["К релизу {} не приложен архив {} — скачайте обновление вручную со страницы релиза","Release {} has no archive {} — download the update manually from the release page"],
+["Версия {} скачана. Закройте панель и запустите PZPanel.bat — обновление применится при запуске","Version {} downloaded. Close the panel and run PZPanel.bat — the update is applied on start"],
+["Версия {} установлена. Перезапустите панель, чтобы начать её использовать","Version {} installed. Restart the panel to start using it"],
+["GitHub ответил HTTP {}","GitHub answered HTTP {}"],["Не удалось связаться с GitHub: {}","Could not reach GitHub: {}"],["В архиве нет pzpanel.jar","There is no pzpanel.jar in the archive"],
+["Скачанный файл не похож на pzpanel.jar — установка отменена","The downloaded file does not look like pzpanel.jar — installation cancelled"],["Скачанный pzpanel.jar повреждён — установка отменена","The downloaded pzpanel.jar is damaged — installation cancelled"],
+["Загрузка не удалась: HTTP {}","Download failed: HTTP {}"],["Недоверенный адрес загрузки: {}","Untrusted download address: {}"],
   ["Отправлены save и quit, запрос на остановку контейнера создан","save and quit sent, container stop request created"],
   ["Отправлены save и quit, но файл-запрос stopRequestFile не создан: {}","save and quit sent, but the stopRequestFile was not created: {}"],
   ["Сервер в отдельном контейнере (serverMode=remote): запускайте его средствами контейнера (docker start / compose) или задайте startRequestFile","The server runs in a separate container (serverMode=remote): start it with container tools (docker start / compose) or set startRequestFile"],

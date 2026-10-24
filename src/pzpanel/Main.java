@@ -40,12 +40,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.3";
+   static final String VERSION = "1.4";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
    private final Mods mods;
    private final ModTools modTools;
+   private final Updater updater;
    private final Backups backups;
    private final Worlds worlds;
    private final MapData mapData;
@@ -64,6 +65,7 @@ public final class Main {
       this.stats = new Stats(this.cfg, this.srv::serverHandle);
       this.players = new Players(this.cfg, this.srv);
       this.mods = new Mods(this.cfg);
+      this.updater = new Updater(this.cfg);
       this.modTools = new ModTools(this.cfg, this.mods);
       this.backups = new Backups(this.cfg, this.srv);
       this.worlds = new Worlds(this.cfg, this.srv, this.backups, () -> {
@@ -353,6 +355,13 @@ public final class Main {
             requirePost(var5);
             JsonNode sortBody = body(var1);
             json(var1, 200, this.modTools.sort(strings(sortBody.path("mods")), sortBody.path("mode").asText("fix")));
+            break;
+         case "/api/update/check":
+            json(var1, 200, this.updater.check("1".equals(query(var1).get("force"))));
+            break;
+         case "/api/update/install":
+            requirePost(var5);
+            json(var1, 200, Map.of("message", this.updater.install()));
             break;
          case "/api/mods/frozen":
             json(var1, 200, this.modTools.archivesState());
