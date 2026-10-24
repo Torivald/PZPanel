@@ -93,13 +93,51 @@ $('#btnBroadcast').onclick = () => { const m = prompt('Сообщение все
 let conCursor = -1, conMode = '';
 function lineClass(l) {
   if (l.startsWith('> ')) return 'me';
-  if (/^ERROR|Exception|SEVERE/.test(l)) return 'e';
+  if (/^ERROR|Exception|SEVERE|^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ERROR /.test(l)) return 'e';
   if (/^WARN/.test(l)) return 'w';
   if (/\[ZB\]|ZombieBuddy/.test(l)) return 'zb';
   return '';
 }
+let conView = 'server', plCursor = -1;
+try { if (localStorage.getItem('pzp.conview') === 'panel') conView = 'panel'; } catch (e) {}
+function setConView(v) {
+  conView = v; try { localStorage.setItem('pzp.conview', v); } catch (e) {}
+  $('#conSrv').classList.toggle('on', v === 'server'); $('#conPanel').classList.toggle('on', v === 'panel');
+  $$('.srvonly').forEach(e => e.classList.toggle('hidden', v === 'panel'));
+  $('#panelLogTools').classList.toggle('hidden', v !== 'panel');
+  $('#console').innerHTML = ''; conMode = ''; conCursor = -1; plCursor = -1;
+  if (v === 'panel') $('#consoleMode').textContent = '— pzpanel.log'; else $('#zbPrompt').classList.add('hidden');
+  pollConsole();
+}
+async function pollPanelLog() {
+  const el = $('#console');
+  const r = await api('/api/panel/log?cursor=' + plCursor);
+  if (r.reset) el.innerHTML = '';
+  if (r.lines.length) {
+    const frag = document.createDocumentFragment();
+    for (const l of r.lines) { const d = document.createElement('div'); d.textContent = l; const c = lineClass(l); if (c) d.className = c; frag.appendChild(d); }
+    el.appendChild(frag);
+    while (el.childNodes.length > 3000) el.removeChild(el.firstChild);
+  }
+  plCursor = r.cursor;
+  if ($('#autoscroll').checked) el.scrollTop = el.scrollHeight;
+}
+window.restartPanel = async function () {
+  if (status && status.canRestartPanel === false) { toast('Перезапуск панели недоступен: её некому поднять заново (нужны systemd, PZPanel.bat или panelRestart=on при restart policy контейнера)', true); return; }
+  if (!confirm('Перезапустить панель? Она будет недоступна несколько секунд. Если включено stopServerOnExit, сервер при этом тоже сохранится и остановится.')) return;
+  const r = await act(() => api('/api/panel/restart', {}));
+  if (!r) return;
+  toast('Панель перезапускается…');
+  const t0 = Date.now();
+  const wait = async () => {
+    try { await api('/api/status'); if (Date.now() - t0 > 2500) { location.reload(); return; } } catch (e) {}
+    if (Date.now() - t0 < 120000) setTimeout(wait, 1500); else toast('Панель не поднялась за 2 минуты', true);
+  };
+  setTimeout(wait, 2500);
+};
 async function pollConsole() {
   if (tab !== 'overview') return;
+  if (conView === 'panel') { try { await pollPanelLog(); } catch (e) {} return; }
   try {
     const r = await api('/api/console?cursor=' + conCursor);
     const el = $('#console');
@@ -118,6 +156,11 @@ async function pollConsole() {
     if ($('#autoscroll').checked) el.scrollTop = el.scrollHeight;
   } catch (e) {}
 }
+$('#conSrv').onclick = () => setConView('server');
+$('#conPanel').onclick = () => setConView('panel');
+$('#plClear').onclick = () => confirm('Очистить журнал панели?') && act(() => api('/api/panel/log/clear', {})).then(() => { $('#console').innerHTML = ''; plCursor = -1; pollConsole(); });
+$('#plRestart').onclick = () => window.restartPanel();
+if (conView === 'panel') setTimeout(() => setConView('panel'), 0);
 $('#cmdForm').addEventListener('submit', async e => {
   e.preventDefault();
   const c = $('#cmd').value.trim(); if (!c) return;
@@ -1203,7 +1246,7 @@ setInterval(() => { if (tab === 'map' || tab === 'players' || tab === 'overview'
         btns.push({ text: 'Установить обновление', primary: true, onclick: async () => {
           if (!confirm('Установить версию ' + r.latest + '? Панель нужно будет перезапустить.')) return;
           $('#modalBtns').innerHTML = ''; $('#modalBody').innerHTML = '<p>Скачиваю и устанавливаю…</p>';
-          try { const x = await api('/api/update/install', {}); openModal('Обновление', '<p>' + esc(x.message) + '</p>', [{ text: 'Закрыть', onclick: closeModal }]); }
+          try { const x = await api('/api/update/install', {}); const rb = [{ text: 'Закрыть', onclick: closeModal }]; if (status && status.canRestartPanel) rb.unshift({ text: 'Перезапустить панель', primary: true, onclick: () => { closeModal(); window.restartPanel(); } }); openModal('Обновление', '<p>' + esc(x.message) + '</p>', rb); }
           catch (e) { openModal('Обновление', '<p class="err">' + esc(e.message) + '</p>', [{ text: 'Закрыть', onclick: closeModal }]); }
         } });
       } else {

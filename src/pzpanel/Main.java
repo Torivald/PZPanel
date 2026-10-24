@@ -40,7 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.4";
+   static final String VERSION = "1.5";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
@@ -84,6 +84,7 @@ public final class Main {
       }
 
       Path var1 = var0.length > 0 ? Paths.get(var0[0]) : jarDir();
+      PanelLog.install(var1);
       new Main(var1).run();
    }
 
@@ -356,6 +357,18 @@ public final class Main {
             JsonNode sortBody = body(var1);
             json(var1, 200, this.modTools.sort(strings(sortBody.path("mods")), sortBody.path("mode").asText("fix")));
             break;
+         case "/api/panel/log":
+            json(var1, 200, PanelLog.read(parseLong((String)var4.get("cursor"), -1L)));
+            break;
+         case "/api/panel/log/clear":
+            requirePost(var5);
+            PanelLog.clear();
+            json(var1, 200, Map.of("message", "Журнал панели очищен"));
+            break;
+         case "/api/panel/restart":
+            requirePost(var5);
+            json(var1, 200, Map.of("message", this.restartPanel()));
+            break;
          case "/api/update/check":
             json(var1, 200, this.updater.check("1".equals(query(var1).get("force"))));
             break;
@@ -560,6 +573,7 @@ public final class Main {
    private Map<String, Object> statusFull() {
       LinkedHashMap var1 = new LinkedHashMap<>(this.srv.status());
       var1.put("panelVersion", VERSION);
+      var1.put("canRestartPanel", this.canRestartPanel());
       var1.put("runningWorld", this.srv.runningWorld());
       LinkedHashMap var2 = new LinkedHashMap();
       var2.put("serverDir", this.cfg.serverDir().toString());
@@ -800,6 +814,35 @@ public final class Main {
       } else {
          send(var1, 400, "text/plain", new byte[0]);
       }
+   }
+
+   /** Перезапуск панели возможен, только если её кто-то поднимет заново: systemd, PZPanel.bat (PZP_SUPERVISED=1) или явное panelRestart=on (например, контейнер с restart policy). */
+   boolean canRestartPanel() {
+      String mode = this.cfg.get("panelRestart", "auto").trim().toLowerCase();
+      if (mode.equals("on")) {
+         return true;
+      }
+      if (mode.equals("off")) {
+         return false;
+      }
+      return System.getenv("INVOCATION_ID") != null || "1".equals(System.getenv("PZP_SUPERVISED"));
+   }
+
+   private String restartPanel() {
+      if (!this.canRestartPanel()) {
+         throw new IllegalStateException("Перезапуск панели недоступен: её некому поднять заново (нужны systemd, PZPanel.bat или panelRestart=on при restart policy контейнера)");
+      }
+      System.out.println("Перезапуск панели по запросу из веб-интерфейса");
+      Thread t = new Thread(() -> {
+         try {
+            Thread.sleep(1000L);
+         } catch (InterruptedException e) {
+         }
+         Runtime.getRuntime().exit(75);
+      }, "pzp-restart");
+      t.setDaemon(true);
+      t.start();
+      return "Панель перезапускается, страница обновится через несколько секунд";
    }
 
    private void downloadModArchive(HttpExchange var1, String var2) throws IOException {

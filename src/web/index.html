@@ -78,7 +78,11 @@
       <div class="card">
         <div class="row between">
           <h3>Консоль <small id="consoleMode" class="muted"></small></h3>
-          <label class="muted small"><input type="checkbox" id="autoscroll" checked> автопрокрутка</label>
+          <div class="row gap center">
+            <span class="seg"><button class="btn small on" id="conSrv">Сервер</button><button class="btn small" id="conPanel">Панель</button></span>
+            <span id="panelLogTools" class="row gap hidden"><button class="btn small" id="plClear">Очистить</button><button class="btn small" id="plRestart">⟳ Перезапустить панель</button></span>
+            <label class="muted small"><input type="checkbox" id="autoscroll" checked> автопрокрутка</label>
+          </div>
         </div>
         <div id="zbPrompt" class="prompt hidden">
           <span id="zbPromptText">Сервер ждёт ответа</span>
@@ -86,11 +90,11 @@
           <button class="btn" data-answer="n">Нет (n)</button>
         </div>
         <pre id="console" class="console"></pre>
-        <form id="cmdForm" class="row gap">
+        <form id="cmdForm" class="row gap srvonly">
           <input id="cmd" class="grow mono" placeholder="Команда сервера: players, save, servermsg &quot;текст&quot;, kickuser &quot;ник&quot;, help…" autocomplete="off">
           <button class="btn primary">Отправить</button>
         </form>
-        <div class="row wrap gap mt quick">
+        <div class="row wrap gap mt quick srvonly">
           <button class="btn sm" data-cmd="players">players</button>
           <button class="btn sm" data-cmd="checkModsNeedUpdate">checkModsNeedUpdate</button>
           <button class="btn sm" data-cmd="showoptions">showoptions</button>

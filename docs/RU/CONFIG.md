@@ -17,6 +17,7 @@
 | `openBrowser` | `true` | Открыть браузер при старте (только Windows) |
 | `autoStartServer` | `false` (Linux-установка: `true`) | Запускать сервер вместе с панелью |
 | `stopServerOnExit` | `false` (Linux-установка: `true`) | При закрытии панели — save + quit серверу |
+| `panelRestart` | `auto` | Кнопка «Перезапустить панель»: `auto` — только если панель поднимут заново (systemd, PZPanel.bat); `on` — разрешить всегда (контейнер с restart policy); `off` — отключить |
 | `stopTimeoutSec` | `170` | Сколько ждать выключения сервера |
 | `autoRestartOnCrash` | `false` | Перезапускать упавший сервер (запущенный из панели) |
 | `dailyRestart` | пусто | Ежедневный перезапуск в `ЧЧ:ММ` (время сервера) |

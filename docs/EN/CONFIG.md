@@ -17,6 +17,7 @@ The file sits next to `pzpanel.jar`. You can also edit it on the "Panel" tab. Re
 | `openBrowser` | `true` | Open the browser on start (Windows only) |
 | `autoStartServer` | `false` (Linux install: `true`) | Start the server together with the panel |
 | `stopServerOnExit` | `false` (Linux install: `true`) | On panel exit — save + quit the server |
+| `panelRestart` | `auto` | The "Restart panel" button: `auto` — only if something will start the panel again (systemd, PZPanel.bat); `on` — always allow (container with a restart policy); `off` — disable |
 | `stopTimeoutSec` | `170` | How long to wait for the server to shut down |
 | `autoRestartOnCrash` | `false` | Restart a crashed server (one started from the panel) |
 | `dailyRestart` | empty | Daily restart at `HH:MM` (server time) |

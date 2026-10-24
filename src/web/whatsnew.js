@@ -1,5 +1,17 @@
 // «Что нового» по версиям: тексты на двух языках, показывается нужный (window.LANG). Новая версия — запись сверху.
 window.PZ_WHATSNEW = {
+  '1.5': {
+    ru: [
+      'Логи панели: в окне консоли переключатель «Сервер / Панель» показывает журнал самой панели (он же пишется в pzpanel.log)',
+      'Кнопка «Перезапустить панель» (systemd, PZPanel.bat или panelRestart=on при restart policy контейнера)',
+      'После установки обновления можно сразу перезапустить панель',
+    ],
+    en: [
+      'Panel logs: a "Server / Panel" switch in the console window shows the panel\'s own log (also written to pzpanel.log)',
+      '"Restart panel" button (systemd, PZPanel.bat, or panelRestart=on with a container restart policy)',
+      'After installing an update you can restart the panel right away',
+    ],
+  },
   '1.4': {
     ru: [
       'Версия панели в боковом меню и кнопка «Что нового» со списком изменений',
