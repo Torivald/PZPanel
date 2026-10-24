@@ -282,7 +282,7 @@ public final class Main {
             break;
          case "/api/server/stop":
             requirePost(var5);
-            json(var1, 200, Map.of("message", this.srv.stop(body(var1).path("force").asBoolean(false))));
+            json(var1, 200, Map.of("message", this.srv.stop(body(var1).path("force").asBoolean(false), true)));
             break;
          case "/api/server/restart":
             requirePost(var5);

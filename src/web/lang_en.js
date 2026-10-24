@@ -1,6 +1,8 @@
 // Английские переводы интерфейса PZ Panel: [русский текст, английский]; {} — подставляемое значение.
 // Файл подключается до i18n.js. Новую строку интерфейса достаточно добавить сюда.
 window.PZ_EN = [
+  ["Отправлены save и quit, запрос на остановку контейнера создан","save and quit sent, container stop request created"],
+  ["Отправлены save и quit, но файл-запрос stopRequestFile не создан: {}","save and quit sent, but the stopRequestFile was not created: {}"],
   ["Сервер в отдельном контейнере (serverMode=remote): запускайте его средствами контейнера (docker start / compose) или задайте startRequestFile","The server runs in a separate container (serverMode=remote): start it with container tools (docker start / compose) or set startRequestFile"],
 ["Запрос на запуск отправлен. Контейнер стартует за 1–3 минуты","Start request sent. The container will start in 1–3 minutes"],["Сервер уже запущен","The server is already running"],
   ["онлайн / {}","online / {}"],["машина: ЦПУ {}","machine: CPU {}"],["· требует: {}","· requires: {}"],["· полный","· full"],["требует: {}","requires: {}"],

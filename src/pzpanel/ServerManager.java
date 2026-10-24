@@ -399,6 +399,11 @@ final class ServerManager {
    }
 
    String stop(boolean var1) throws IOException {
+      return this.stop(var1, false);
+   }
+
+   /** fromUser=true — кнопка «Остановить»: при serverMode=remote и заданном stopRequestFile после save+quit кладёт файл-запрос, чтобы внешний обработчик выполнил docker stop (иначе restart policy поднимет контейнер заново). Перезапуск этот файл не создаёт. */
+   String stop(boolean var1, boolean fromUser) throws IOException {
       if (this.remote()) {
          if (var1) {
             throw new IOException("Принудительное завершение недоступно: сервер в другом контейнере (docker stop / kill)");
@@ -415,6 +420,19 @@ final class ServerManager {
             this.sendConsole("quit");
          } catch (Exception e) {
             throw new IOException("Не удалось отправить quit: " + e.getMessage());
+         }
+         String stopReq = fromUser ? this.cfg.get("stopRequestFile") : "";
+         if (!stopReq.isEmpty()) {
+            try {
+               Path f = Paths.get(stopReq);
+               if (f.getParent() != null) {
+                  Files.createDirectories(f.getParent());
+               }
+               Files.writeString(f, Instant.now().toString() + "\n");
+            } catch (Exception e) {
+               throw new IOException("Отправлены save и quit, но файл-запрос stopRequestFile не создан: " + e.getMessage());
+            }
+            return "Отправлены save и quit, запрос на остановку контейнера создан";
          }
          return "Отправлены save и quit. Если у контейнера restart policy — сервер поднимется заново; остановить совсем — docker stop";
       }
