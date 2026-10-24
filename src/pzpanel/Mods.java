@@ -344,6 +344,9 @@ final class Mods {
    // и скачивать его при запуске, архив для игроков берёт именно эту версию (как scripts/04_freeze_mods.sh).
 
    private Path pinSource(String wid) throws IOException, InterruptedException {
+      if (Util.isWindows()) {
+         return this.pinSourceWindows(wid);
+      }
       Path own = this.cfg.serverDir().resolve("steamapps/workshop/content/108600").resolve(wid).resolve("mods");
       if (Files.isDirectory(own)) {
          return own;
@@ -393,6 +396,117 @@ final class Mods {
       return src;
    }
 
+   // ---------------- Windows: где взять мод для закрепления ----------------
+   // 1) уже скачанный мод: Мастерская сервера, Мастерская Steam-клиента (игра на этом ПК), workshopDirs=;
+   // 2) иначе SteamCMD: из параметра steamcmd=, PZPanel\steamcmd, C:\steamcmd — или панель скачает его сама.
+   private Path winCache() {
+      String c = this.cfg.get("steamcmdCache", "");
+      return c.isBlank() ? this.cfg.panelDir.resolve("steamcmd_cache") : Paths.get(c);
+   }
+
+   private Path pinSourceWindows(String wid) throws IOException, InterruptedException {
+      for (Path d : this.cfg.workshopDirs()) {
+         if (d.startsWith(this.cfg.zomboidDir())) {
+            continue; // Zomboid\Workshop — свои публикации, не Мастерская
+         }
+         Path p = d.resolve(wid).resolve("mods");
+         if (Files.isDirectory(p)) {
+            return p;
+         }
+      }
+      Path exe = this.winSteamcmd();
+      Path cache = this.winCache();
+      Files.createDirectories(cache);
+      Path src = cache.resolve("steamapps").resolve("workshop").resolve("content").resolve("108600").resolve(wid).resolve("mods");
+      deleteTree(src.getParent());
+      String log = "";
+      // первый запуск SteamCMD обновляет сам себя и может выйти, не скачав предмет, — тогда второй заход
+      for (int attempt = 1; attempt <= 2 && !Files.isDirectory(src); attempt++) {
+         List<String> c = List.of(exe.toString(), "+force_install_dir", cache.toAbsolutePath().toString(), "+login", "anonymous",
+            "+workshop_download_item", "108600", wid, "validate", "+quit");
+         Process p = new ProcessBuilder(c).directory(exe.getParent().toFile()).redirectErrorStream(true).start();
+         p.getOutputStream().close();
+         StringBuilder out = new StringBuilder();
+         Thread t = new Thread(() -> {
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+               String l;
+               while ((l = r.readLine()) != null) {
+                  synchronized (out) {
+                     out.append(l).append('\n');
+                     if (out.length() > 20000) {
+                        out.delete(0, 10000);
+                     }
+                  }
+               }
+            } catch (IOException e) {
+            }
+         });
+         t.setDaemon(true);
+         t.start();
+         if (!p.waitFor(20, TimeUnit.MINUTES)) {
+            p.destroyForcibly();
+            throw new IOException("SteamCMD не уложился в 20 минут");
+         }
+         t.join(2000);
+         synchronized (out) {
+            log = out.length() > 600 ? out.substring(out.length() - 600) : out.toString();
+         }
+      }
+      if (!Files.isDirectory(src)) {
+         throw new IOException("SteamCMD не скачал предмет " + wid + ": " + log.trim());
+      }
+      return src;
+   }
+
+   private Path winSteamcmd() throws IOException, InterruptedException {
+      List<Path> cand = new ArrayList<>();
+      String conf = this.cfg.get("steamcmd");
+      if (!conf.isBlank()) {
+         cand.add(Paths.get(conf));
+      }
+      Path own = this.cfg.panelDir.resolve("steamcmd").resolve("steamcmd.exe");
+      cand.add(own);
+      cand.add(Paths.get("C:\\steamcmd\\steamcmd.exe"));
+      for (Path p : cand) {
+         if (Files.isRegularFile(p)) {
+            return p;
+         }
+      }
+      if (!conf.isBlank()) {
+         throw new IOException("Не найден SteamCMD: " + conf + " (параметр steamcmd на вкладке «Панель»)");
+      }
+      // скачать SteamCMD с сервера Valve в PZPanel\steamcmd
+      Path dir = own.getParent();
+      Files.createDirectories(dir);
+      Path zip = dir.resolve("steamcmd.zip");
+      java.net.http.HttpRequest rq = java.net.http.HttpRequest.newBuilder(java.net.URI.create("https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"))
+         .timeout(java.time.Duration.ofMinutes(5)).build();
+      java.net.http.HttpResponse<Path> rs = Util.HTTP.send(rq, java.net.http.HttpResponse.BodyHandlers.ofFile(zip));
+      if (rs.statusCode() != 200) {
+         throw new IOException("Не удалось скачать SteamCMD: HTTP " + rs.statusCode() + ". Скачайте steamcmd.zip вручную и распакуйте в " + dir);
+      }
+      try (java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(Files.newInputStream(zip))) {
+         java.util.zip.ZipEntry e;
+         while ((e = zin.getNextEntry()) != null) {
+            Path t = dir.resolve(e.getName()).normalize();
+            if (!t.startsWith(dir)) {
+               continue;
+            }
+            if (e.isDirectory()) {
+               Files.createDirectories(t);
+            } else {
+               Files.createDirectories(t.getParent());
+               Files.copy(zin, t, StandardCopyOption.REPLACE_EXISTING);
+            }
+         }
+      }
+      Files.deleteIfExists(zip);
+      if (!Files.isRegularFile(own)) {
+         throw new IOException("В архиве SteamCMD нет steamcmd.exe");
+      }
+      return own;
+   }
+
    private static void copyTree(Path from, Path to) throws IOException {
       try (Stream<Path> s = Files.walk(from)) {
          for (Path p : (Iterable<Path>) s::iterator) {
@@ -413,6 +527,12 @@ final class Mods {
       }
       try (Stream<Path> s = Files.walk(d)) {
          for (Path p : (Iterable<Path>) s.sorted(Comparator.reverseOrder())::iterator) {
+            if (Util.isWindows()) {
+               try {
+                  Files.setAttribute(p, "dos:readonly", false);
+               } catch (Exception e) {
+               }
+            }
             Files.delete(p);
          }
       }
@@ -554,7 +674,7 @@ final class Mods {
          deleteTree(dst.resolve(f));
          copyTree(src.resolve(f), dst.resolve(f));
       }
-      if (!src.startsWith(this.cfg.serverDir())) {
+      if (Util.isWindows() ? src.startsWith(this.winCache()) : !src.startsWith(this.cfg.serverDir())) {
          deleteTree(src.getParent()); // кэш steamcmd больше не нужен
       }
       long upd = 0L;
@@ -578,6 +698,21 @@ final class Mods {
       }
       keep.add(wid + "\t" + String.join(",", folders) + "\tpanel\t" + stamp);
       Util.writeTextWithBackup(mf, String.join("\n", keep) + "\n", this.cfg.fileBackupDir());
+      if (Util.isWindows()) {
+         Path fl = dst.resolve("_frozen_workshop_items.txt");
+         List<String> ids = new ArrayList<>();
+         if (Files.exists(fl)) {
+            for (String l : Util.readText(fl).split("\r?\n")) {
+               if (l.trim().matches("\\d+") && !ids.contains(l.trim())) {
+                  ids.add(l.trim());
+               }
+            }
+         }
+         if (!ids.contains(wid)) {
+            ids.add(wid);
+            Util.writeTextWithBackup(fl, String.join("\n", ids) + "\n", this.cfg.fileBackupDir());
+         }
+      }
       List<String> ws = new ArrayList<>(splitList(Configs.iniValue(this.cfg.serverIni(), "WorkshopItems")));
       boolean wasWs = ws.remove(wid);
       if (wasWs) {
@@ -632,6 +767,7 @@ final class Mods {
       if (var1 != null) {
          var2.put("require", var1.require());
          var2.put("loadAfter", var1.loadAfter());
+         var2.put("folder", var1.folder());
          var2.put("versionMin", var1.versionMin());
          var2.put("versionMax", var1.versionMax());
          var2.put("versionDir", var1.versionDir());

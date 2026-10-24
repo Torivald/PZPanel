@@ -34,7 +34,12 @@
       <a data-tab="backups">Бэкапы</a>
       <a data-tab="settings">Панель</a>
     </nav>
-    <div class="sidestatus"><span id="stateDot" class="dot"></span><span id="stateText">…</span></div>
+    <div class="verbox">
+      <div class="verline">PZ Panel <b id="verTxt">…</b></div>
+      <div class="row gap"><button class="btn small" id="whatsNewBtn">Что нового</button><button class="btn small" id="updBtn">Проверить обновление</button></div>
+    </div>
+    <div class="sidestatus"><span id="stateDot" class="dot"></span><span id="stateText">…</span>
+      <select id="langSel" class="langsel" title="Язык интерфейса / Interface language"><option value="ru">Русский</option><option value="en">English</option></select></div>
   </aside>
 
   <main>
@@ -155,11 +160,35 @@
           <div class="row gap wrap">
             <input id="modFilter" placeholder="Фильтр по названию / ID">
             <label class="small"><input type="checkbox" id="syncClient" checked> записать порядок и в клиент (mods/default.txt)</label>
+            <button class="btn" id="modsSort" title="Расставить моды по зависимостям (require / loadModAfter / loadModBefore)">↕ Сортировать…</button>
             <button class="btn" id="modsReload">Отменить изменения</button>
             <button class="btn primary" id="modsSave">Сохранить</button>
           </div>
         </div>
         <div id="modsDirty" class="muted small"></div>
+      </div>
+      <div class="card hidden" id="sortPanel">
+        <h4>Автосортировка модов</h4>
+        <div class="muted small">Результат сначала показывается как предпросмотр — порядок меняется только после «Применить», а в сервер попадёт после «Сохранить». Меняйте порядок только при остановленном сервере и до начала игры: в уже начатом мире смена порядка модов может испортить сохранение.</div>
+        <label class="block mt"><input type="radio" name="sortMode" value="fix" checked> <b>Исправить порядок</b> — ваш порядок сохраняется, сдвигаются только моды, нарушающие require / loadModAfter / loadModBefore</label>
+        <label class="block"><input type="radio" name="sortMode" value="categories"> <b>По категориям и алфавиту</b> — как кнопка «Sort» в моде Mod Load Order Sorter [b42]: библиотеки → ресурсы → карты → транспорт → код → одежда → интерфейс → прочее → переводы; затем та же проверка зависимостей. Порядок, который вы подбирали вручную, будет потерян</label>
+        <div id="sortResult" class="mt"></div>
+        <div class="row gap mt">
+          <button class="btn" id="sortRun">Показать результат</button>
+          <button class="btn primary" id="sortApply" disabled>Применить</button>
+          <button class="btn" id="sortClose">Закрыть</button>
+        </div>
+      </div>
+      <div class="card hidden" id="dlPanel">
+        <h4>Скачать моды с сервера <small class="muted" id="dlTitle"></small></h4>
+        <label class="block"><input type="radio" name="dlScope" value="one" checked> <b>Только этот мод</b> <span class="muted" id="dlOneInfo"></span></label>
+        <label class="block"><input type="radio" name="dlScope" value="all"> <b>Все установленные моды</b> <span class="muted" id="dlAllInfo"></span></label>
+        <div class="muted small mt" id="dlPolicy"></div>
+        <div id="dlProgress" class="mt small"></div>
+        <div class="row gap mt">
+          <button class="btn primary" id="dlRun">Подготовить архив</button>
+          <button class="btn" id="dlClose">Закрыть</button>
+        </div>
       </div>
       <div class="cols">
         <div class="card col2">
@@ -182,6 +211,11 @@
           <div class="card">
             <h4>Скачаны, но выключены</h4>
             <div id="modsAvailable" class="availlist"></div>
+          </div>
+          <div class="card">
+            <div class="row between wrap gap"><h4>Архивы модов для игроков</h4><button class="btn sm" id="dlAllBtn">Запаковать все…</button></div>
+            <div class="muted small" id="arcPolicy">Замороженные моды можно скачать с сервера одним архивом.</div>
+            <div id="arcList" class="availlist"></div>
           </div>
           <div class="card">
             <h4>Предметы Мастерской (WorkshopItems)</h4>
@@ -313,6 +347,10 @@
   </main>
 </div>
 <div id="toast" class="toast hidden"></div>
+<div id="modal" class="modal hidden"><div class="modalbox"><div class="modalhead"><h3 id="modalTitle"></h3><button class="btn small" id="modalX">✕</button></div><div id="modalBody"></div><div class="row gap mt" id="modalBtns"></div></div></div>
+<script src="/lang_en.js"></script>
+<script src="/whatsnew.js"></script>
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
