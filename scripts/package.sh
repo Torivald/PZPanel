@@ -5,6 +5,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# .bat должны быть только ASCII: при chcp 65001 cmd неверно читает UTF-8 и выполняет обрывки строк
+if LC_ALL=C grep -l '[^ -~[:space:]]' dist/windows/*.bat src/build.bat; then echo "Ошибка: в .bat есть не-ASCII символы (см. выше)"; exit 1; fi
 bash src/build.sh
 VER="$(grep -oP 'static final String VERSION = "\K[^"]+' src/pzpanel/Main.java)"
 OUT="$ROOT/out"; rm -rf "$OUT/stage"; mkdir -p "$OUT"
