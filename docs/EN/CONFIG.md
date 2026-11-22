@@ -33,6 +33,7 @@ The file sits next to `pzpanel.jar`. You can also edit it on the "Panel" tab. Re
 | `steamcmdCache` | `/tmp/pzws` (Windows: `PZPanel\steamcmd_cache`) | Temporary `steamcmd` download folder (removed after pinning) |
 | `modArchiveTtlHours` | `24` | After how many hours a **single-mod** archive in `PZPanel/mod_archives/` is deleted (a full archive is always kept as one copy) |
 | `modUploadMaxMb` | `4096` | Maximum size of a mod zip uploaded on the "Mods" tab (MB). Temporary files live in `PZPanel/mod_uploads/` and are deleted after an hour |
+| `modReplacedKeepDays` | `30` | How many days to keep old mod versions in `Zomboid/mods_replaced` (0 — forever) |
 | `mapDir` | `<serverDir>/media/maps/Muldraugh, KY` | Map files for the layers (buildings, streets, zones) |
 | `topViewDir` | `<panel>/map/html/map_data/base_top` | Result of the "top view" render |
 

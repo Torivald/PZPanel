@@ -232,6 +232,19 @@
             <div id="arcList" class="availlist"></div>
           </div>
           <div class="card">
+            <div class="row between wrap gap"><h4>Моды на диске</h4><button class="btn sm" id="diskLoad">Показать</button></div>
+            <div class="muted small">Удаление скачанных модов с сервера: чтобы освободить место или поставить мод заново. Удалять и возвращать прежние версии можно только при остановленном сервере.</div>
+            <div id="diskBox" class="hidden">
+              <div class="row gap wrap mt"><input id="diskFilter" class="grow" placeholder="Фильтр по названию / ID"><label class="small"><input type="checkbox" id="diskAll"> выбрать все</label></div>
+              <div id="diskList" class="availlist mt"></div>
+              <label class="small block mt"><input type="checkbox" id="diskClean" checked> убрать удалённые моды из списка модов и WorkshopItems активного мира</label>
+              <div class="row gap mt"><button class="btn sm danger" id="diskDelete" disabled>Удалить выбранные</button><span id="diskSel" class="muted small"></span></div>
+              <h4 class="mt">Прежние версии (mods_replaced)</h4>
+              <div class="muted small" id="replInfo"></div>
+              <div id="replList" class="availlist"></div>
+            </div>
+          </div>
+          <div class="card">
             <h4>Предметы Мастерской (WorkshopItems)</h4>
             <div class="muted small">Сервер скачивает их при запуске; игроки — при входе.</div>
             <div id="wsItems" class="availlist"></div>

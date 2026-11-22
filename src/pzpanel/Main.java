@@ -40,13 +40,14 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.6";
+   static final String VERSION = "1.6.1";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
    private final Mods mods;
    private final ModTools modTools;
    private final ModUpload modUpload;
+   private final ModDisk modDisk;
    private final Updater updater;
    private final Backups backups;
    private final Worlds worlds;
@@ -69,6 +70,7 @@ public final class Main {
       this.updater = new Updater(this.cfg);
       this.modTools = new ModTools(this.cfg, this.mods);
       this.modUpload = new ModUpload(this.cfg, this.mods, this.srv);
+      this.modDisk = new ModDisk(this.cfg, this.mods, this.srv);
       this.backups = new Backups(this.cfg, this.srv);
       this.worlds = new Worlds(this.cfg, this.srv, this.backups, () -> {
          this.worldSize = -1L;
@@ -423,6 +425,30 @@ public final class Main {
                Map<String, String> wids = new LinkedHashMap<>();
                b.path("workshopIds").fields().forEachRemaining(e -> wids.put(e.getKey(), e.getValue().asText("")));
                json(var1, 200, this.modUpload.install(b.path("token").asText(), strings(b.path("folders")), wids));
+            }
+            break;
+         case "/api/mods/disk":
+            json(var1, 200, this.modDisk.state());
+            break;
+         case "/api/mods/disk/delete":
+            requirePost(var5);
+            {
+               JsonNode b = body(var1);
+               json(var1, 200, this.modDisk.delete(strings(b.path("folders")), strings(b.path("workshop")), b.path("cleanIni").asBoolean(true)));
+            }
+            break;
+         case "/api/mods/replaced/delete":
+            requirePost(var5);
+            {
+               JsonNode b = body(var1);
+               json(var1, 200, Map.of("message", this.modDisk.deleteReplaced(b.path("stamp").asText(), b.path("folder").asText(""))));
+            }
+            break;
+         case "/api/mods/replaced/restore":
+            requirePost(var5);
+            {
+               JsonNode b = body(var1);
+               json(var1, 200, Map.of("message", this.modDisk.restoreReplaced(b.path("stamp").asText(), b.path("folder").asText())));
             }
             break;
          case "/api/mods/upload/cancel":

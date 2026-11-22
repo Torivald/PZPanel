@@ -31,6 +31,12 @@ If a mod is not on the Workshop (your own build, a mod from another site, an ite
 - It must be a `.zip` (repack 7z and rar). The size limit is `modUploadMaxMb` (4096 MB by default). If the panel is behind a proxy (nginx, a router), the proxy may have its own request size limit.
 - After adding or replacing a mod, players need a new mod archive ("⬇ Download from server" → "All installed mods").
 
+### Mods on disk and old versions
+
+The **"Mods on disk"** card → "Show": all the server's mods with sizes — `Zomboid/mods` folders and items downloaded by the server itself (`steamapps/workshop/content/108600`; the game's Steam client Workshop is not touched). Tick the ones you need (or "select all") → **"Delete selected"**. With "remove the deleted mods from the … mod list" ticked, their mods are removed from `Mods=` (if no other copy of the mod is left) and the items from `WorkshopItems=` of the active world; `_frozen_manifest.txt` is cleaned too. Deleting works only while the server is stopped and cannot be undone; to delete all mods the panel asks you to type "УДАЛИТЬ".
+
+The same card lists **old versions** from `Zomboid/mods_replaced` (archive uploads put them there): "Restore" puts that version in place of the current one (the current one goes to `mods_replaced`), "Delete" removes it for good. Versions older than `modReplacedKeepDays` days (30 by default, 0 — forever) are deleted automatically.
+
 ## Mod auto-sorter
 
 ![Mod auto-sorter](../screenshots/sorter_en.png)

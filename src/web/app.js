@@ -872,6 +872,59 @@ async function installUpload() {
   });
 }
 
+// ---------------- моды на диске и прежние версии ----------------
+let diskState = null;
+const diskSel = new Set();
+async function loadDisk() {
+  $('#diskBox').classList.remove('hidden'); $('#diskLoad').textContent = 'Обновить'; $('#diskList').innerHTML = '<div class="muted small">Считаю размеры…</div>';
+  try { diskState = await api('/api/mods/disk'); } catch (e) { toast(e.message, true); return; }
+  const keys = new Set(diskRows().map(r => r.k)); [...diskSel].forEach(k => keys.has(k) || diskSel.delete(k));
+  renderDisk();
+}
+function diskRows() {
+  if (!diskState) return [];
+  return diskState.local.map(m => ({ ...m, k: 'folder:' + m.key, where: 'Zomboid/mods' }))
+    .concat(diskState.workshop.map(m => ({ ...m, k: 'ws:' + m.key, where: 'Мастерская сервера' })));
+}
+function renderDisk() {
+  const f = $('#diskFilter').value.trim().toLowerCase();
+  const rows = diskRows().filter(r => !f || r.key.toLowerCase().includes(f) || r.ids.some(i => i.toLowerCase().includes(f)) || r.names.some(n => String(n).toLowerCase().includes(f)));
+  $('#diskList').innerHTML = rows.map(r => `<div class="it"><label class="grow"><input type="checkbox" data-dk="${esc(r.k)}"${diskSel.has(r.k) ? ' checked' : ''}> <b>${esc(r.names[0] || r.key)}</b>${r.enabled ? ' <span class="tag">включён</span>' : ''}<br><small class="muted">${esc(r.where)}: ${esc(r.key)}${r.ids.filter(i => i !== r.key).length ? ' · ' + r.ids.filter(i => i !== r.key).map(esc).join(', ') : ''}${r.kind === 'folder' && r.workshopId ? ' · ' + esc(r.workshopId) : ''}</small></label><span class="muted small">${fmtSize(r.size)}</span></div>`).join('') || '<div class="muted small">Нет</div>';
+  $$('#diskList [data-dk]').forEach(c => c.onchange = () => { c.checked ? diskSel.add(c.dataset.dk) : diskSel.delete(c.dataset.dk); diskSummary(); });
+  $('#diskAll').checked = rows.length > 0 && rows.every(r => diskSel.has(r.k));
+  diskSummary();
+  const keep = diskState.keepDays;
+  $('#replInfo').textContent = 'Сюда загрузка архивом переносит заменённые папки модов. ' + (keep > 0 ? 'Хранятся ' + keep + ' дн. (параметр modReplacedKeepDays), потом удаляются сами.' : 'Хранятся бессрочно (modReplacedKeepDays=0).');
+  $('#replList').innerHTML = diskState.replaced.map(x => `<div class="it"><div><b>${esc(x.folder)}</b><br><small class="muted">${esc(x.stamp.replace('_', ' '))} · ${fmtSize(x.size)}</small></div><div class="row gap"><button class="btn sm" data-rr="${esc(x.stamp)}" data-rf="${esc(x.folder)}" title="Поставить эту версию вместо текущей">Вернуть</button><button class="btn sm danger" data-rd="${esc(x.stamp)}" data-rf="${esc(x.folder)}">Удалить</button></div></div>`).join('') || '<div class="muted small">Нет</div>';
+  $$('#replList [data-rr]').forEach(b => b.onclick = () => confirm('Вернуть версию ' + b.dataset.rf + ' от ' + b.dataset.rr.replace('_', ' ') + '?\nТекущая папка мода будет перенесена в mods_replaced.') && act(async () => { const r = await api('/api/mods/replaced/restore', { stamp: b.dataset.rr, folder: b.dataset.rf }); await loadDisk(); await loadMods(); return r; }));
+  $$('#replList [data-rd]').forEach(b => b.onclick = () => confirm('Удалить прежнюю версию ' + b.dataset.rf + ' от ' + b.dataset.rd.replace('_', ' ') + '? Вернуть её будет нельзя.') && act(async () => { const r = await api('/api/mods/replaced/delete', { stamp: b.dataset.rd, folder: b.dataset.rf }); await loadDisk(); return r; }));
+}
+function diskSummary() {
+  const sel = diskRows().filter(r => diskSel.has(r.k));
+  $('#diskSel').textContent = sel.length ? 'Выбрано: ' + sel.length + ' · ' + fmtSize(sel.reduce((a, r) => a + r.size, 0)) : '';
+  $('#diskDelete').disabled = !sel.length;
+}
+$('#diskLoad').onclick = loadDisk;
+$('#diskFilter').oninput = renderDisk;
+$('#diskAll').onchange = () => { const f = $('#diskFilter').value.trim().toLowerCase(); $$('#diskList [data-dk]').forEach(c => { $('#diskAll').checked ? diskSel.add(c.dataset.dk) : diskSel.delete(c.dataset.dk); }); renderDisk(); };
+$('#diskDelete').onclick = async () => {
+  const rows = diskRows(), sel = rows.filter(r => diskSel.has(r.k));
+  if (!sel.length) return;
+  if (modsDirty) return toast('Сначала сохраните изменения списка модов', true);
+  const on = sel.filter(r => r.enabled).length, clean = $('#diskClean').checked;
+  let text = 'Удалить с диска выбранные моды (' + sel.length + ', ' + fmtSize(sel.reduce((a, r) => a + r.size, 0)) + ')? Вернуть их будет нельзя — только скачать или загрузить заново.';
+  if (on) text += clean ? '\n\nВключённые моды (' + on + ') будут убраны из списка модов активного мира.' : '\n\nСреди них включённые (' + on + ') — без них сервер не запустится, пока вы не уберёте их из списка.';
+  if (!confirm(text)) return;
+  if (sel.length === rows.length && prompt('Будут удалены ВСЕ моды сервера. Для подтверждения введите: УДАЛИТЬ') !== 'УДАЛИТЬ') return toast('Ничего не удалено', true);
+  $('#diskDelete').disabled = true;
+  await act(async () => {
+    const r = await api('/api/mods/disk/delete', { folders: sel.filter(x => x.kind === 'folder').map(x => x.key), workshop: sel.filter(x => x.kind === 'workshop').map(x => x.key), cleanIni: clean });
+    sel.forEach(x => diskSel.delete(x.k));
+    await loadMods(); await loadDisk();
+    return r;
+  });
+};
+
 // ---------------- автосортировка ----------------
 let sortRes = null;
 $('#modsSort').onclick = () => { $('#sortPanel').classList.remove('hidden'); $('#sortResult').innerHTML = ''; $('#sortApply').disabled = true; sortRes = null; $('#sortPanel').scrollIntoView({ block: 'nearest' }); };

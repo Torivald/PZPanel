@@ -2,6 +2,13 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.6.1
+
+- 🇷🇺 «Моды на диске»: список модов сервера с размерами, удаление выбранных или всех (`Zomboid/mods` и Мастерская сервера), по желанию — и из списка модов мира
+- 🇬🇧 "Mods on disk": the server's mods with sizes, delete selected or all (`Zomboid/mods` and the server Workshop), optionally also from the world's mod list
+- 🇷🇺 Прежние версии в `Zomboid/mods_replaced`: удалить или вернуть из панели; автоочистка через `modReplacedKeepDays` дней (30)
+- 🇬🇧 Old versions in `Zomboid/mods_replaced`: delete or restore from the panel; auto-cleanup after `modReplacedKeepDays` days (30)
+
 ## 1.6
 
 - 🇷🇺 Загрузка мода zip-архивом на вкладке «Моды» (мод не из Мастерской, своя сборка, архив модов для игроков): папки модов ищутся по `mod.info`, ставятся в `Zomboid/mods`, моды включаются; прежняя папка уходит в `Zomboid/mods_replaced`

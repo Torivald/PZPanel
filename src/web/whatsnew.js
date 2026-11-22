@@ -1,5 +1,15 @@
 // «Что нового» по версиям: тексты на двух языках, показывается нужный (window.LANG). Новая версия — запись сверху.
 window.PZ_WHATSNEW = {
+  '1.6.1': {
+    ru: [
+      'Карточка «Моды на диске» на вкладке «Моды»: список модов сервера с размерами, удаление выбранных или всех (Zomboid/mods и скачанные сервером предметы Мастерской); удалённые моды можно сразу убрать из списка модов мира',
+      'Прежние версии модов (mods_replaced): удалить или вернуть вместо текущей; старше 30 дней удаляются сами (modReplacedKeepDays)',
+    ],
+    en: [
+      'A "Mods on disk" card on the "Mods" tab: the server\'s mods with sizes, delete selected or all of them (Zomboid/mods and Workshop items downloaded by the server); deleted mods can be removed from the world\'s mod list right away',
+      'Old mod versions (mods_replaced): delete or restore in place of the current one; older than 30 days are deleted automatically (modReplacedKeepDays)',
+    ],
+  },
   '1.6': {
     ru: [
       'Загрузка мода zip-архивом прямо на вкладке «Моды»: мод не из Мастерской, своя сборка, скачанный вручную предмет или архив модов для игроков. Панель сама находит в архиве папки модов, кладёт их в Zomboid/mods и включает моды; обновлять их из Steam сервер не будет',
