@@ -24,6 +24,7 @@ The file sits next to `pzpanel.jar`. You can also edit it on the "Panel" tab. Re
 | `restartWarnMinutes` | `5` | How many minutes ahead to warn players |
 | `serverMode` | `local` | `remote` — the server runs in another container: "running" is detected by an open RCON port, start and hard stop are done with container tools — see [DOCKER.md](DOCKER.md) |
 | `startRequestFile` | empty | With `serverMode=remote` the "Start" button creates this file (for example `/requests/start`) and an external handler (systemd path unit, script) runs `docker start`. Empty — the button answers that the server must be started with container tools |
+| `updateRequestFile` | empty | With `serverMode=remote`, if the server folder is not mounted into the panel container: the "Update" button on the "Game version" tab creates this file (`branch=<branch>`, `requested=<time>`) and a handler on the host updates the server |
 | `rconHost` | `127.0.0.1` | RCON address of the server; with `serverMode=remote` — the container name or server host |
 | `gameVersion` | `42.21` | Used to check a mod's `versionMax` |
 | `pyramidZip` | auto | Path to the map's `pyramid.zip` if it was not found by itself |

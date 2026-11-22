@@ -238,7 +238,7 @@ final class ZbUpdater {
    }
 
    /** SteamCMD не найден — скачать с серверов Valve в PZPanel/steamcmd. */
-   private Path installSteamcmd() throws IOException, InterruptedException {
+   Path installSteamcmd() throws IOException, InterruptedException {
       boolean win = Util.isWindows();
       Path dir = this.cfg.panelDir.resolve("steamcmd");
       Files.createDirectories(dir);

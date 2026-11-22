@@ -20,7 +20,8 @@ PZ Panel is a web panel for a Project Zomboid (Build 42) dedicated server. It is
 | **Server settings** | `<name>.ini` as a form, with search |
 | **Sandbox** | `<name>_SandboxVars.lua` as a form, grouped (mod options too) |
 | **Files** | Any config as text: ini, sandbox, spawn points, client mods, the start script |
-| **ZombieBuddy** | Java mod approvals (`mod_approvals.json`) |
+| **ZombieBuddy** | Java mod approvals (`mod_approvals.json`), ZombieBuddy and `authors.json` update |
+| **Game version** | Server version, Steam branches, server update via SteamCMD keeping the launch settings |
 | **Backups** | World zip copies: create, download, restore, delete |
 | **Panel** | Settings of the panel itself (`panel.properties`) |
 
@@ -43,6 +44,24 @@ The sidebar below the tab list shows the panel version and two buttons:
 - **"Check for updates"** — the panel asks for the latest release in the GitHub repository (the server needs access to `api.github.com`) and compares it with its own version. If a new one is out it shows the notes and offers **"Install update"**: the release archive for your system is downloaded, `pzpanel.jar` is taken from it, the old one is kept as `pzpanel.jar.bak`, and you only need to restart the panel. Launch scripts and `panel.properties` are not changed. On Windows a running jar cannot be replaced — the new file waits as `pzpanel.jar.new` and is put in place on the next start of `PZPanel.bat`.
 
 ![Update check](../screenshots/update_en.png)
+
+## Game version and server update
+
+The **"Game version"** tab: the installed version (read from `projectzomboid.jar`), the Steam branch and build. **"Check versions on Steam"** asks Steam (SteamCMD, anonymously) for the branch list — `public`, `pre-release`, fall-back ones (`42.21`…) — with builds and dates. Pick a branch → **"Update to branch …"** (only while the server is stopped; back up the world first). SteamCMD: on Windows the panel downloads it itself if needed, on Linux it uses the `steamcmd` option.
+
+An update may restore the stock `StartServer64.bat` and `ProjectZomboid64.json`. Before updating, the panel saves them to `PZPanel/file_backups/before_update_<time>/` and afterwards puts back into the new files the ZombieBuddy agent (`-agentlib:zbNative` / `-javaagent`), Java memory (`-Xmx`/`-Xms`), the garbage collector and `-servername`. The panel's `gameVersion` option is set to the new version.
+
+If the server was installed by the **Steam client** (Windows, folder in `steamapps/common`), pick the same branch as in Steam (Properties → Betas), otherwise Steam brings its own back. You can also update via Steam: "Remember launch settings" → update in Steam → "Restore launch settings".
+
+**Docker (`serverMode=remote`)**: if the server folder is mounted into the panel container (as for "📌 Pin"), the panel updates the files itself. Otherwise set `updateRequestFile`: the panel writes `branch=<branch>` into it, and a handler on the host (as for `startRequestFile`) updates the server. Example handler:
+
+```bash
+# run by a systemd path unit when /requests/update appears
+BRANCH=$(sed -n 's/^branch=//p' /requests/update); rm -f /requests/update
+docker stop pz-server
+steamcmd +force_install_dir /srv/pzserver +login anonymous +app_update 380870 -beta "$BRANCH" +quit
+docker start pz-server
+```
 
 ## Panel logs and restart
 

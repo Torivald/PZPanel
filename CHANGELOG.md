@@ -2,6 +2,13 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.7
+
+- 🇷🇺 Вкладка «Версия игры»: версия сервера (из `projectzomboid.jar`), ветки Steam (`app_info_print`), обновление через SteamCMD (`app_update 380870 -beta <ветка>`); настройки запуска (ZombieBuddy, `-Xmx`/`-Xms`, GC, `-servername`) сохраняются и возвращаются; `gameVersion` обновляется сам
+- 🇬🇧 "Game version" tab: server version (from `projectzomboid.jar`), Steam branches (`app_info_print`), update via SteamCMD (`app_update 380870 -beta <branch>`); launch settings (ZombieBuddy, `-Xmx`/`-Xms`, GC, `-servername`) are saved and restored; `gameVersion` is updated automatically
+- 🇷🇺 `serverMode=remote`: обновление самой панелью, если папка сервера смонтирована, иначе — файл-запрос `updateRequestFile`
+- 🇬🇧 `serverMode=remote`: the panel updates itself if the server folder is mounted, otherwise via the `updateRequestFile` request
+
 ## 1.6.2
 
 - 🇷🇺 Вкладка ZombieBuddy: версии агента сервера и копий мода, скачивание последней версии через SteamCMD и установка одной кнопкой (`ZombieBuddy.jar` по `-javaagent`/рядом с сервером, на Windows и `zbNative.dll`; замороженный мод в `Zomboid/mods`); прежние версии — в `file_backups` и `mods_replaced`

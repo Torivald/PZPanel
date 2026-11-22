@@ -40,7 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.6.2";
+   static final String VERSION = "1.7";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
@@ -49,6 +49,7 @@ public final class Main {
    private final ModUpload modUpload;
    private final ModDisk modDisk;
    private final ZbUpdater zbUpdater;
+   private final GameUpdate gameUpdate;
    private final Updater updater;
    private final Backups backups;
    private final Worlds worlds;
@@ -74,6 +75,7 @@ public final class Main {
       this.modDisk = new ModDisk(this.cfg, this.mods, this.srv);
       this.backups = new Backups(this.cfg, this.srv);
       this.zbUpdater = new ZbUpdater(this.cfg, this.mods, this.srv, this.backups);
+      this.gameUpdate = new GameUpdate(this.cfg, this.srv, this.backups, this.zbUpdater);
       this.worlds = new Worlds(this.cfg, this.srv, this.backups, () -> {
          this.worldSize = -1L;
          this.worldSizeAt = 0L;
@@ -501,6 +503,26 @@ public final class Main {
             } else {
                json(var1, 200, Map.of("path", var18.toString(), "exists", Files.exists(var18), "text", Files.exists(var18) ? Util.readText(var18) : ""));
             }
+            break;
+         case "/api/game/update":
+            if (var5) {
+               JsonNode b = body(var1);
+               json(var1, 200, Map.of("message", this.gameUpdate.update(b.path("branch").asText("public"), b.path("validate").asBoolean(false))));
+            } else {
+               json(var1, 200, this.gameUpdate.state());
+            }
+            break;
+         case "/api/game/check":
+            requirePost(var5);
+            json(var1, 200, Map.of("message", this.gameUpdate.check()));
+            break;
+         case "/api/game/launch/snapshot":
+            requirePost(var5);
+            json(var1, 200, this.gameUpdate.snapshotNow());
+            break;
+         case "/api/game/launch/reapply":
+            requirePost(var5);
+            json(var1, 200, this.gameUpdate.reapplyFromBackup());
             break;
          case "/api/zb/update":
             json(var1, 200, this.zbUpdater.state());

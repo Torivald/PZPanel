@@ -1105,6 +1105,47 @@ $('#fileReload').onclick = loadFile;
 $('#fileSave').onclick = () => confirm('Сохранить файл? Прежняя версия попадёт в file_backups.') && act(async () => { const r = await api('/api/file?name=' + $('#fileSel').value, { text: $('#fileText').value }); fileOrig = $('#fileText').value; return r; });
 loaders.files = () => { if ($('#fileText').value === fileOrig) loadFile(); };
 
+// ---------------- версия игры ----------------
+let gm = null, gmSel = '';
+async function loadGame() {
+  try { gm = await api('/api/game/update'); } catch (e) { toast(e.message, true); return; }
+  const r = gm;
+  $('#gmInfo').innerHTML = !r.direct
+    ? 'Сервер в отдельном контейнере (serverMode=remote). ' + (r.updateRequestFile ? 'Обновление — запросом в <code>' + esc(r.updateRequestFile) + '</code>, его выполнит обработчик на хосте.' : 'Папка сервера не смонтирована в контейнер панели: смонтируйте её (как для «Закрепить») или задайте <code>updateRequestFile</code> и обработчик на хосте.')
+    : (r.remote ? 'Сервер в отдельном контейнере, его папка смонтирована — панель обновит файлы сама (сервер должен быть остановлен). ' : '') + `Установлено: <b>${esc(r.version || '?')}</b> · ветка <b>${esc(r.branch)}</b>${r.buildId ? ' · сборка ' + esc(r.buildId) : ''}${r.updated ? ' · обновлено ' + fmtTime(r.updated) : ''}`
+      + (r.panelGameVersion && r.version && !r.version.startsWith(r.panelGameVersion) ? ` <span class="dead-txt">(в настройке gameVersion панели — ${esc(r.panelGameVersion)})</span>` : '');
+  $('#gmWarn').innerHTML = (r.steamClient ? '<div class="banner mt">Сервер поставлен Steam-клиентом. Обновление панели (SteamCMD) работает, но ветку выбирайте ту же, что в Steam (Свойства → Бета-версии), иначе Steam вернёт свою. Можно обновлять и через Steam: «Запомнить настройки запуска» → обновление в Steam → «Вернуть настройки запуска».</div>' : '')
+    + (r.serverRunning ? '<div class="banner mt">Сервер запущен — для обновления остановите его.</div>' : '');
+  $('#gmProgress').textContent = r.progress || '';
+  $('#gmProgress').className = 'small mt' + (/^Ошибка/.test(r.progress) ? ' err' : '');
+  const br = r.branches;
+  if (!br.some(b => b.name === gmSel)) gmSel = br.some(b => b.name === r.branch) ? r.branch : (br[0] ? br[0].name : (r.remote ? 'public' : ''));
+  $('#gmTable').innerHTML = br.length ? '<tr><th></th><th>Ветка</th><th>Сборка</th><th>Обновлена</th><th>Описание</th></tr>' + br.map(b => `<tr><td><input type="radio" name="gmbr" value="${esc(b.name)}"${b.name === gmSel ? ' checked' : ''}${b.password ? ' disabled' : ''}></td><td><b>${esc(b.name)}</b>${b.name === r.branch ? ' <span class="tag">текущая</span>' : ''}${b.password ? ' <span class="tag">с паролем</span>' : ''}</td><td>${esc(b.buildId)}${b.name === r.branch && r.buildId && b.buildId !== r.buildId ? ' <span class="tag on">есть обновление</span>' : b.name === r.branch && b.buildId === r.buildId ? ' <span class="tag">установлена</span>' : ''}</td><td>${b.updated ? fmtTime(b.updated) : ''}</td><td class="small">${esc(b.description)}</td></tr>`).join('')
+    : '<tr><td class="muted">Нажмите «Проверить версии в Steam» — панель спросит у Steam список веток.</td></tr>';
+  $$('#gmTable [name=gmbr]').forEach(x => x.onchange = () => { gmSel = x.value; gmButtons(); });
+  $('#gmLaunch').innerHTML = (r.launch || []).map(l => `<div><b>${esc(l.file)}</b>: <span class="mono">${l.args.map(esc).join(' ')}</span></div>`).join('') || (!r.direct ? '' : '<span class="muted">важных настроек в файлах запуска не найдено</span>');
+  $('#gmSnap').disabled = $('#gmReapply').disabled = !r.direct;
+  gmButtons();
+  if (r.busy) { clearTimeout(loadGame._t); loadGame._t = setTimeout(() => tab === 'game' && loadGame(), 1500); }
+}
+function gmButtons() {
+  const r = gm; if (!r) return;
+  $('#gmCheck').disabled = r.busy;
+  $('#gmUpdate').disabled = r.busy || r.serverRunning || !gmSel || (!r.direct && !r.updateRequestFile);
+  $('#gmUpdate').textContent = gmSel ? 'Обновить до ветки ' + gmSel : 'Обновить до выбранной ветки';
+}
+$('#gmRefresh').onclick = loadGame;
+$('#gmCheck').onclick = () => act(async () => { const x = await api('/api/game/check', {}); setTimeout(loadGame, 500); return x; });
+$('#gmUpdate').onclick = () => {
+  const b = gmSel; if (!b) return;
+  const switching = gm.branch && b !== gm.branch;
+  if (!confirm(`Обновить сервер Project Zomboid${switching ? ' и переключить ветку ' + gm.branch + ' → ' + b : ' (ветка ' + b + ')'}?\n\nСервер должен быть остановлен. Скачивание — несколько минут. Мир перед этим лучше забэкапить (вкладка «Бэкапы»).\nИгрокам понадобится та же версия игры, а моды с versionMax ниже новой версии могут перестать грузиться.`)) return;
+  act(async () => { const x = await api('/api/game/update', { branch: b, validate: $('#gmValidate').checked }); setTimeout(loadGame, 500); return x; });
+};
+$('#gmSnap').onclick = () => act(async () => { const x = await api('/api/game/launch/snapshot', {}); loadGame(); return x; });
+$('#gmReapply').onclick = () => confirm('Вернуть настройки запуска (ZombieBuddy, память, сборщик мусора, -servername) из последнего снимка?') && act(async () => { const x = await api('/api/game/launch/reapply', {}); loadGame(); return x; });
+loaders.game = loadGame;
+
 // ---------------- обновление ZombieBuddy ----------------
 let zbu = null, zbuSel = '';
 function zbuVer(x) { return x && x.version ? x.version : '?'; }

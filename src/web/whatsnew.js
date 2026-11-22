@@ -1,5 +1,17 @@
 // «Что нового» по версиям: тексты на двух языках, показывается нужный (window.LANG). Новая версия — запись сверху.
 window.PZ_WHATSNEW = {
+  '1.7': {
+    ru: [
+      'Новая вкладка «Версия игры»: установленная версия сервера, ветки Steam (public, pre-release, откатные) и обновление сервера через SteamCMD одной кнопкой',
+      'После обновления панель возвращает в файлы запуска ZombieBuddy, память Java, сборщик мусора и -servername — Steam их больше не затирает',
+      'Docker: если папка сервера смонтирована в контейнер панели, панель обновляет сервер сама; иначе — запрос updateRequestFile для обработчика на хосте',
+    ],
+    en: [
+      'A new "Game version" tab: the installed server version, Steam branches (public, pre-release, fall-back ones) and a one-click server update via SteamCMD',
+      'After an update the panel puts ZombieBuddy, Java memory, the garbage collector and -servername back into the launch files — Steam no longer wipes them',
+      'Docker: if the server folder is mounted into the panel container, the panel updates the server itself; otherwise an updateRequestFile request for a host handler',
+    ],
+  },
   '1.6.2': {
     ru: [
       'Обновление ZombieBuddy на вкладке ZombieBuddy: версии агента сервера и копий мода, «Скачать последнюю версию» (SteamCMD, без аккаунта Steam) и установка одной кнопкой — ZombieBuddy.jar встаёт туда, откуда его грузит сервер (на Windows вместе с zbNative.dll), замороженный мод тоже обновляется',

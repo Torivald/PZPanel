@@ -31,6 +31,7 @@
       <a data-tab="sandbox">Песочница</a>
       <a data-tab="files">Файлы</a>
       <a data-tab="zb">ZombieBuddy</a>
+      <a data-tab="game">Версия игры</a>
       <a data-tab="backups">Бэкапы</a>
       <a data-tab="settings">Панель</a>
     </nav>
@@ -386,6 +387,27 @@
     </section>
 
     <!-- SETTINGS -->
+    <section id="tab-game" class="tab hidden">
+      <div class="card">
+        <div class="row between wrap gap">
+          <h3>Версия сервера Project Zomboid</h3>
+          <div class="row gap wrap"><button class="btn" id="gmRefresh">Обновить</button><button class="btn primary" id="gmCheck">Проверить версии в Steam</button></div>
+        </div>
+        <div id="gmInfo" class="small"></div>
+        <div id="gmWarn"></div>
+        <div id="gmProgress" class="small mt"></div>
+        <div class="tablewrap mt"><table id="gmTable" class="table"></table></div>
+        <div class="row gap wrap mt">
+          <label class="small" title="Проверить все файлы сервера: дольше, но чинит испорченные"><input type="checkbox" id="gmValidate"> проверить все файлы (validate)</label>
+          <button class="btn primary" id="gmUpdate" disabled>Обновить до выбранной ветки</button>
+        </div>
+        <h4 class="mt">Настройки запуска</h4>
+        <div class="muted small">Обновление может вернуть стоковые StartServer64.bat и ProjectZomboid64.json. Панель запоминает их перед обновлением и потом возвращает ZombieBuddy, память Java (-Xmx/-Xms), сборщик мусора и -servername. Если обновляете через Steam-клиент — нажмите «Запомнить» до обновления и «Вернуть» после.</div>
+        <div id="gmLaunch" class="small mt"></div>
+        <div class="row gap wrap mt"><button class="btn sm" id="gmSnap">Запомнить настройки запуска</button><button class="btn sm" id="gmReapply">Вернуть настройки запуска</button></div>
+      </div>
+    </section>
+
     <section id="tab-settings" class="tab hidden">
       <div class="card">
         <div class="row between"><h3>Настройки панели</h3><button class="btn primary" id="setSave">Сохранить</button></div>
