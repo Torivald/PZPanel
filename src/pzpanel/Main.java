@@ -40,12 +40,13 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.5";
+   static final String VERSION = "1.6";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
    private final Mods mods;
    private final ModTools modTools;
+   private final ModUpload modUpload;
    private final Updater updater;
    private final Backups backups;
    private final Worlds worlds;
@@ -67,6 +68,7 @@ public final class Main {
       this.mods = new Mods(this.cfg);
       this.updater = new Updater(this.cfg);
       this.modTools = new ModTools(this.cfg, this.mods);
+      this.modUpload = new ModUpload(this.cfg, this.mods, this.srv);
       this.backups = new Backups(this.cfg, this.srv);
       this.worlds = new Worlds(this.cfg, this.srv, this.backups, () -> {
          this.worldSize = -1L;
@@ -409,6 +411,24 @@ public final class Main {
             }
 
             json(var1, 200, this.mods.details(var21));
+            break;
+         case "/api/mods/upload":
+            requirePost(var5);
+            json(var1, 200, this.modUpload.receive(var1.getRequestBody(), (String)var4.get("name")));
+            break;
+         case "/api/mods/upload/install":
+            requirePost(var5);
+            {
+               JsonNode b = body(var1);
+               Map<String, String> wids = new LinkedHashMap<>();
+               b.path("workshopIds").fields().forEachRemaining(e -> wids.put(e.getKey(), e.getValue().asText("")));
+               json(var1, 200, this.modUpload.install(b.path("token").asText(), strings(b.path("folders")), wids));
+            }
+            break;
+         case "/api/mods/upload/cancel":
+            requirePost(var5);
+            this.modUpload.cancel(body(var1).path("token").asText());
+            json(var1, 200, Map.of("ok", true));
             break;
          case "/api/workshop/pin":
             JsonNode pinBody = body(var1);

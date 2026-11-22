@@ -796,6 +796,82 @@ $('#modFilter').oninput = renderMods;
 $('#modsReload').onclick = () => (!modsDirty || confirm('Отменить несохранённые изменения?')) && loadMods();
 $('#modsSave').onclick = () => act(async () => { const r = await api('/api/mods', { mods: modsOrder, workshopItems: wsItems, syncClient: $('#syncClient').checked }); await loadMods(); return r; });
 
+// ---------------- загрузка мода архивом ----------------
+let upState = null;
+function uploadZip(file) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', '/api/mods/upload?name=' + encodeURIComponent(file.name));
+    x.setRequestHeader('X-PZP', TOKEN);
+    x.setRequestHeader('Content-Type', 'application/zip');
+    x.upload.onprogress = e => { if (e.lengthComputable) $('#upProgress').textContent = 'Загрузка: ' + Math.floor(e.loaded * 100 / e.total) + '% (' + fmtSize(e.loaded) + ' из ' + fmtSize(e.total) + ')'; };
+    x.upload.onload = () => { $('#upProgress').textContent = 'Проверяю архив…'; };
+    x.onload = () => {
+      if (x.status === 401) { showLogin(); return reject(new Error('Нужен вход')); }
+      let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status === 413) return reject(new Error('Архив слишком большой для сервера или прокси перед панелью'));
+      x.status >= 200 && x.status < 300 ? resolve(j) : reject(new Error(j.error || ('HTTP ' + x.status)));
+    };
+    x.onerror = () => reject(new Error('Загрузка прервалась (сеть или прокси перед панелью)'));
+    x.send(file);
+  });
+}
+$('#upSend').onclick = async () => {
+  const f = $('#upFile').files[0];
+  if (!f) return toast('Выберите zip-архив с модом', true);
+  if (upState) { api('/api/mods/upload/cancel', { token: upState.token }).catch(() => {}); upState = null; }
+  $('#upResult').innerHTML = ''; $('#upSend').disabled = true;
+  try { upState = await uploadZip(f); $('#upProgress').textContent = ''; renderUpload(); }
+  catch (e) { $('#upProgress').textContent = ''; toast(e.message, true); }
+  finally { $('#upSend').disabled = false; }
+};
+function renderUpload() {
+  const r = upState; if (!r) { $('#upResult').innerHTML = ''; return; }
+  const enabled = new Set(modsOrder.map(x => x.replace(/^\\+/, '')));
+  $('#upResult').innerHTML = `<div class="small mt"><b>${esc(r.file)}</b> — найдено модов: ${r.mods.length}</div>` + r.mods.map((m, i) => `<div class="upmod">
+      <label><input type="checkbox" data-upf="${i}" checked> <b>${esc(m.folder)}</b></label>${m.java ? ' <span class="tag java">Java</span>' : ''} <span class="muted">${fmtSize(m.size)} · ${m.files} файлов · в архиве: ${esc(m.root)}</span>
+      <div>${m.ids.map((id, k) => `<label class="block"><input type="checkbox" data-upid="${esc(id)}" data-upi="${i}"${enabled.has(id) ? ' disabled' : ' checked'}> включить <b>${esc(id)}</b>${m.names[k] && m.names[k] !== id ? ' — ' + esc(m.names[k]) : ''}${enabled.has(id) ? ' <span class="muted">(уже включён)</span>' : ''}</label>`).join('') || '<span class="warn">в mod.info нет id=</span>'}</div>
+      ${m.exists ? `<div class="warn">Папка Zomboid/mods/${esc(m.folder)} уже есть — будет заменена, прежняя версия уйдёт в Zomboid/mods_replaced${r.serverRunning ? '. Сначала остановите сервер' : ''}</div>` : ''}
+      ${m.duplicates.length ? `<div class="warn">Мод с таким id уже установлен: ${m.duplicates.map(esc).join('; ')}. Оставьте одну копию, иначе сервер может взять не ту.</div>` : ''}
+      <div class="mt">ID предмета Мастерской (необязательно): <input type="text" data-upw="${i}" value="${esc(m.workshopId)}" placeholder="например 3508537032"> <span class="muted small">— для списка закреплённых модов и разрешения Java в ZombieBuddy</span></div>
+    </div>`).join('') + `<div class="row gap mt"><button class="btn primary" id="upInstall">Установить</button><button class="btn" id="upCancel">Отмена</button></div>`;
+  $$('#upResult [data-upf]').forEach(b => b.onchange = () => $$(`#upResult [data-upi="${b.dataset.upf}"]`).forEach(c => { if (!c.disabled || !b.checked) c.checked = b.checked && !c.disabled; }));
+  $('#upCancel').onclick = () => { api('/api/mods/upload/cancel', { token: r.token }).catch(() => {}); upState = null; $('#upFile').value = ''; renderUpload(); };
+  $('#upInstall').onclick = installUpload;
+}
+async function installUpload() {
+  const r = upState; if (!r) return;
+  if (modsDirty) return toast('Сначала сохраните изменения списка модов', true);
+  const folders = [], workshopIds = {}, enableIds = [];
+  r.mods.forEach((m, i) => {
+    if (!$(`#upResult [data-upf="${i}"]`).checked) return;
+    folders.push(m.folder);
+    const w = $(`#upResult [data-upw="${i}"]`).value.trim(); if (w) workshopIds[m.folder] = w;
+    $$(`#upResult [data-upi="${i}"]`).forEach(c => { if (c.checked && !c.disabled) enableIds.push(c.dataset.upid); });
+  });
+  if (!folders.length) return toast('Не выбрано ни одной папки мода', true);
+  $('#upInstall').disabled = true;
+  await act(async () => {
+    const res = await api('/api/mods/upload/install', { token: r.token, folders, workshopIds });
+    upState = null; $('#upFile').value = ''; renderUpload();
+    await loadMods();
+    // включить выбранные моды и сразу сохранить список (предметы, ставшие локальными, убираются из WorkshopItems)
+    const wsDone = new Set(res.installed.map(x => x.workshopId).filter(Boolean));
+    const before = wsItems.length; wsItems = wsItems.filter(w => !wsDone.has(w));
+    let changed = wsItems.length !== before;
+    for (const id of enableIds) { if (modIndex()[id] && !modsOrder.some(x => x.replace(/^\\+/, '') === id)) { enableMod(id, ''); changed = true; } }
+    if (changed) { await api('/api/mods', { mods: modsOrder, workshopItems: wsItems, syncClient: $('#syncClient').checked }); await loadMods(); }
+    const javaWs = res.installed.filter(x => x.java && x.workshopId).map(x => x.workshopId);
+    for (const w of [...new Set(javaWs)]) {
+      if (confirm('В моде (предмет ' + w + ') есть Java-код. Разрешить его в ZombieBuddy? Без этого сервер спросит о нём при запуске.')) {
+        const a = await api('/api/workshop/pin', { id: w, approve: true });
+        res.message += ' ' + a.message;
+      }
+    }
+    return res;
+  });
+}
+
 // ---------------- автосортировка ----------------
 let sortRes = null;
 $('#modsSort').onclick = () => { $('#sortPanel').classList.remove('hidden'); $('#sortResult').innerHTML = ''; $('#sortApply').disabled = true; sortRes = null; $('#sortPanel').scrollIntoView({ block: 'nearest' }); };

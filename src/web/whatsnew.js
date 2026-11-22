@@ -1,5 +1,17 @@
 // «Что нового» по версиям: тексты на двух языках, показывается нужный (window.LANG). Новая версия — запись сверху.
 window.PZ_WHATSNEW = {
+  '1.6': {
+    ru: [
+      'Загрузка мода zip-архивом прямо на вкладке «Моды»: мод не из Мастерской, своя сборка, скачанный вручную предмет или архив модов для игроков. Панель сама находит в архиве папки модов, кладёт их в Zomboid/mods и включает моды; обновлять их из Steam сервер не будет',
+      'Прежняя папка мода с тем же именем не удаляется, а переносится в Zomboid/mods_replaced',
+      'Windows: PZPanel.bat и другие .bat больше не ломаются из-за кодировки («\'exist\' is not recognized…»)',
+    ],
+    en: [
+      'Upload a mod as a zip archive right on the "Mods" tab: a non-Workshop mod, your own build, a manually downloaded item or a players\' mod archive. The panel finds the mod folders in the archive, puts them into Zomboid/mods and enables the mods; the server will not update them from Steam',
+      'An older mod folder with the same name is not deleted but moved to Zomboid/mods_replaced',
+      'Windows: PZPanel.bat and the other .bat files no longer break because of the encoding ("\'exist\' is not recognized…")',
+    ],
+  },
   '1.5': {
     ru: [
       'Логи панели: в окне консоли переключатель «Сервер / Панель» показывает журнал самой панели (он же пишется в pzpanel.log)',

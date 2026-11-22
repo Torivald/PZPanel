@@ -73,6 +73,9 @@ input[type=checkbox]{width:auto;padding:0;accent-color:var(--accent)}
 .tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:8px;border:1px solid var(--line);color:var(--muted);margin-left:4px}
 .tag.java{color:var(--info);border-color:var(--info)}
 .availlist{max-height:40vh;overflow:auto}
+.upmod{border-top:1px solid var(--line);padding:8px 0;font-size:13px}
+.upmod .warn{color:var(--warn,#d9a441)}
+.upmod input[type=text]{width:12em}
 .availlist .it{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
 .wsresults{max-height:60vh;overflow:auto;margin-top:8px}
 .ws{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}

@@ -2,6 +2,15 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.6
+
+- 🇷🇺 Загрузка мода zip-архивом на вкладке «Моды» (мод не из Мастерской, своя сборка, архив модов для игроков): папки модов ищутся по `mod.info`, ставятся в `Zomboid/mods`, моды включаются; прежняя папка уходит в `Zomboid/mods_replaced`
+- 🇬🇧 Upload a mod as a zip archive on the "Mods" tab (a non-Workshop mod, your own build, a players' mod archive): mod folders are found by `mod.info`, installed into `Zomboid/mods` and enabled; an older folder goes to `Zomboid/mods_replaced`
+- 🇷🇺 Параметр `modUploadMaxMb` — предельный размер загружаемого архива (по умолчанию 4096 МБ)
+- 🇬🇧 `modUploadMaxMb` option — the maximum size of an uploaded archive (default 4096 MB)
+- 🇷🇺 Windows: `.bat`-файлы только в ASCII — `PZPanel.bat` больше не ломается из-за кодировки
+- 🇬🇧 Windows: `.bat` files are ASCII-only — `PZPanel.bat` no longer breaks because of the encoding
+
 ## 1.5
 
 - 🇷🇺 Логи панели: переключатель «Сервер / Панель» в окне консоли, журнал также пишется в `pzpanel.log`

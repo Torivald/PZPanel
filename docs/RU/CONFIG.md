@@ -32,6 +32,7 @@
 | `steamcmd` | пусто | Путь к `steamcmd.sh`: нужен кнопке «📌 Закрепить», если мод ещё не скачан сервером. На Windows можно не задавать: панель ищет `PZPanel\steamcmd\steamcmd.exe` и `C:\steamcmd\steamcmd.exe`, а если их нет — скачивает SteamCMD сама |
 | `steamcmdCache` | `/tmp/pzws` (Windows: `PZPanel\steamcmd_cache`) | Временная папка загрузки `steamcmd` (после закрепления удаляется) |
 | `modArchiveTtlHours` | `24` | Через сколько часов удаляется архив **одного** мода из `PZPanel/mod_archives/` (полный архив всегда хранится в одном экземпляре) |
+| `modUploadMaxMb` | `4096` | Предельный размер zip-архива мода, загружаемого на вкладке «Моды» (МБ). Временные файлы — в `PZPanel/mod_uploads/`, удаляются через час |
 | `mapDir` | `<serverDir>/media/maps/Muldraugh, KY` | Файлы карты для слоёв (здания, улицы, зоны) |
 | `topViewDir` | `<панель>/map/html/map_data/base_top` | Результат рендера «вид сверху» |
 

@@ -20,6 +20,17 @@ Next to an item in the "Workshop items" list there is a **"📌 Pin"** button. T
 - **you can pin only while the server is stopped**: while it runs, Windows keeps the mod files (`.jar`) open;
 - the panel also appends to `_frozen_workshop_items.txt`, so `freeze_mods.bat` and `pack_mods.bat` see the pinned mod.
 
+### Upload a mod as an archive
+
+If a mod is not on the Workshop (your own build, a mod from another site, an item downloaded by hand), install it from a zip archive: "Mods" tab → the **"Upload a mod as an archive"** card → choose a `.zip` → "Upload".
+
+- The panel finds the mod folders in the archive by `mod.info`. Supported: `<Mod folder>/42/mod.info` (B42), `<Mod folder>/mod.info`, a Workshop item as is (`<ID>/mods/<Mod folder>/…`), `mod.info` right in the archive root (the folder is named after the mod `id`) and a players' mod archive (several folders at once, item IDs are taken from its `_frozen_manifest.txt`).
+- Before installing, the panel shows what it found: folders, mod `id`s, whether there is Java code, clashes with mods already installed. You can untick folders, choose which mods to enable right away and give the Workshop item ID (optional).
+- The folders go to `Zomboid/mods`, the ticked mods are enabled in `Mods=` and the list is saved. The server does not update such mods from Steam. If an item ID is given, it is written to `_frozen_manifest.txt` and `_frozen_workshop_items.txt` (as for pinned mods) and removed from `WorkshopItems=`; then a ZombieBuddy approval for Java code can be written right away.
+- A folder with the same name is not deleted but moved to `Zomboid/mods_replaced/<date_time>/`, from where you can bring it back. **An installed folder can be replaced only while the server is stopped**; a new one can be added while it runs (picked up after a restart).
+- It must be a `.zip` (repack 7z and rar). The size limit is `modUploadMaxMb` (4096 MB by default). If the panel is behind a proxy (nginx, a router), the proxy may have its own request size limit.
+- After adding or replacing a mod, players need a new mod archive ("⬇ Download from server" → "All installed mods").
+
 ## Mod auto-sorter
 
 ![Mod auto-sorter](../screenshots/sorter_en.png)

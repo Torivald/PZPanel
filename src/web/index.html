@@ -213,6 +213,16 @@
             <div id="wsResults" class="wsresults"></div>
           </div>
           <div class="card">
+            <h4>Загрузить мод архивом</h4>
+            <div class="muted small">Zip с папкой мода (внутри есть mod.info): мод не из Мастерской, своя сборка, предмет Мастерской, скачанный вручную, или архив модов для игроков. Мод ляжет в Zomboid/mods и обновляться из Steam не будет.</div>
+            <div class="row gap mt wrap">
+              <input type="file" id="upFile" accept=".zip,application/zip" class="grow">
+              <button class="btn sm primary" id="upSend">Загрузить</button>
+            </div>
+            <div id="upProgress" class="small mt"></div>
+            <div id="upResult"></div>
+          </div>
+          <div class="card">
             <h4>Скачаны, но выключены</h4>
             <div id="modsAvailable" class="availlist"></div>
           </div>
