@@ -2,6 +2,11 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.7.1
+
+- 🇷🇺 «📌 Закрепить» на Linux: SteamCMD повторяет скачивание до 3 раз при «Download item … failed (Failure)», между попытками чистит недокачанное в кэше; если SteamCMD положил предмет не в `steamcmdCache` (нет прав на папку), панель берёт его оттуда, куда он скачался
+- 🇬🇧 "📌 Pin" on Linux: SteamCMD retries the download up to 3 times on "Download item … failed (Failure)", cleaning partial downloads in the cache between attempts; if SteamCMD put the item outside `steamcmdCache` (no permission on the folder), the panel takes it from where it was downloaded
+
 ## 1.7
 
 - 🇷🇺 Вкладка «Версия игры»: версия сервера (из `projectzomboid.jar`), ветки Steam (`app_info_print`), обновление через SteamCMD (`app_update 380870 -beta <ветка>`); настройки запуска (ZombieBuddy, `-Xmx`/`-Xms`, GC, `-servername`) сохраняются и возвращаются; `gameVersion` обновляется сам

@@ -1,5 +1,9 @@
 // «Что нового» по версиям: тексты на двух языках, показывается нужный (window.LANG). Новая версия — запись сверху.
 window.PZ_WHATSNEW = {
+  '1.7.1': {
+    ru: ['«📌 Закрепить» на Linux: до 3 попыток скачивания, если SteamCMD отвечает «Download item … failed (Failure)»; предмет находится, даже если SteamCMD скачал его не в папку кэша'],
+    en: ['"📌 Pin" on Linux: up to 3 download attempts when SteamCMD answers "Download item … failed (Failure)"; the item is found even if SteamCMD downloaded it outside the cache folder'],
+  },
   '1.7': {
     ru: [
       'Новая вкладка «Версия игры»: установленная версия сервера, ветки Steam (public, pre-release, откатные) и обновление сервера через SteamCMD одной кнопкой',

@@ -362,38 +362,60 @@ final class Mods {
          c.addAll(List.of("runuser", "-u", "steam", "--"));
       }
       c.addAll(List.of(cmd, "+force_install_dir", cache.toString(), "+login", "anonymous", "+workshop_download_item", "108600", wid, "validate", "+quit"));
-      Process p = new ProcessBuilder(c).redirectErrorStream(true).start();
-      StringBuilder out = new StringBuilder();
-      Thread t = new Thread(() -> {
-         try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-            String l;
-            while ((l = r.readLine()) != null) {
-               synchronized (out) {
-                  out.append(l).append('\n');
-                  if (out.length() > 20000) {
-                     out.delete(0, 10000);
+      // «ERROR! Download item … failed (Failure)» у SteamCMD бывает разовым (сеть, недокачанный кусок в кэше):
+      // до трёх попыток, между ними — чистим недокачанное в кэше
+      Path src = cache.resolve("steamapps/workshop/content/108600").resolve(wid).resolve("mods");
+      String log = "";
+      for (int attempt = 1; attempt <= 3; attempt++) {
+         Process p = new ProcessBuilder(c).redirectErrorStream(true).start();
+         StringBuilder out = new StringBuilder();
+         Thread t = new Thread(() -> {
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+               String l;
+               while ((l = r.readLine()) != null) {
+                  synchronized (out) {
+                     out.append(l).append('\n');
+                     if (out.length() > 20000) {
+                        out.delete(0, 10000);
+                     }
                   }
                }
+            } catch (IOException e) {
             }
+         });
+         t.setDaemon(true);
+         t.start();
+         if (!p.waitFor(20, TimeUnit.MINUTES)) {
+            p.destroyForcibly();
+            throw new IOException("steamcmd не уложился в 20 минут");
+         }
+         t.join(2000);
+         String all;
+         synchronized (out) {
+            all = out.toString().replaceAll("\u001B\\[[0-9;]*[A-Za-z]", "");
+         }
+         if (Files.isDirectory(src)) {
+            return src;
+         }
+         // SteamCMD мог положить предмет не в force_install_dir (например, нет прав на папку кэша) — берём путь из его ответа
+         java.util.regex.Matcher m = java.util.regex.Pattern.compile("Success\\. Downloaded item " + wid + " to \"([^\"]+)\"").matcher(all);
+         if (m.find() && Files.isDirectory(Paths.get(m.group(1)).resolve("mods"))) {
+            return Paths.get(m.group(1)).resolve("mods");
+         }
+         log = all.length() > 600 ? all.substring(all.length() - 600) : all;
+         Path ws = cache.resolve("steamapps/workshop");
+         try {
+            Util.deleteTree(ws.resolve("downloads"));
+            Util.deleteTree(ws.resolve("temp"));
+            Files.deleteIfExists(ws.resolve("appworkshop_108600.acf"));
          } catch (IOException e) {
          }
-      });
-      t.setDaemon(true);
-      t.start();
-      if (!p.waitFor(20, TimeUnit.MINUTES)) {
-         p.destroyForcibly();
-         throw new IOException("steamcmd не уложился в 20 минут");
-      }
-      t.join(2000);
-      Path src = cache.resolve("steamapps/workshop/content/108600").resolve(wid).resolve("mods");
-      if (!Files.isDirectory(src)) {
-         String log;
-         synchronized (out) {
-            log = out.length() > 600 ? out.substring(out.length() - 600) : out.toString();
+         if (attempt < 3) {
+            Thread.sleep(5000L);
          }
-         throw new IOException("steamcmd не скачал предмет " + wid + ": " + log.trim());
       }
-      return src;
+      throw new IOException("steamcmd не скачал предмет " + wid + " (3 попытки): " + log.trim()
+         + ". Если ошибка повторяется — проверьте место на диске и права пользователя steam на папку " + cache);
    }
 
    // ---------------- Windows: где взять мод для закрепления ----------------
