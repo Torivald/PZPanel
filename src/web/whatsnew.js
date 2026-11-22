@@ -1,5 +1,15 @@
 // «Что нового» по версиям: тексты на двух языках, показывается нужный (window.LANG). Новая версия — запись сверху.
 window.PZ_WHATSNEW = {
+  '1.6.2': {
+    ru: [
+      'Обновление ZombieBuddy на вкладке ZombieBuddy: версии агента сервера и копий мода, «Скачать последнюю версию» (SteamCMD, без аккаунта Steam) и установка одной кнопкой — ZombieBuddy.jar встаёт туда, откуда его грузит сервер (на Windows вместе с zbNative.dll), замороженный мод тоже обновляется',
+      'Кнопка «Обновить authors.json»: свежий список доверенных авторов Java-модов с GitHub ZombieBuddy в ~/.zombie_buddy',
+    ],
+    en: [
+      'ZombieBuddy update on the ZombieBuddy tab: versions of the server agent and mod copies, "Download the latest version" (SteamCMD, no Steam account) and one-click install — ZombieBuddy.jar goes where the server loads it from (with zbNative.dll on Windows), the frozen mod is updated too',
+      'An "Update authors.json" button: the fresh list of trusted Java mod authors from ZombieBuddy\'s GitHub into ~/.zombie_buddy',
+    ],
+  },
   '1.6.1': {
     ru: [
       'Карточка «Моды на диске» на вкладке «Моды»: список модов сервера с размерами, удаление выбранных или всех (Zomboid/mods и скачанные сервером предметы Мастерской); удалённые моды можно сразу убрать из списка модов мира',

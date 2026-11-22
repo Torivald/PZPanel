@@ -2,6 +2,13 @@
 
 Full release notes / Полные описания выпусков: [Releases](https://github.com/Torivald/PZPanel/releases)
 
+## 1.6.2
+
+- 🇷🇺 Вкладка ZombieBuddy: версии агента сервера и копий мода, скачивание последней версии через SteamCMD и установка одной кнопкой (`ZombieBuddy.jar` по `-javaagent`/рядом с сервером, на Windows и `zbNative.dll`; замороженный мод в `Zomboid/mods`); прежние версии — в `file_backups` и `mods_replaced`
+- 🇬🇧 ZombieBuddy tab: versions of the server agent and mod copies, download of the latest version via SteamCMD and one-click install (`ZombieBuddy.jar` per `-javaagent`/next to the server, plus `zbNative.dll` on Windows; the frozen mod in `Zomboid/mods`); old versions go to `file_backups` and `mods_replaced`
+- 🇷🇺 «Обновить authors.json»: свежий список доверенных авторов с GitHub ZombieBuddy в `~/.zombie_buddy/authors.json` (если GitHub недоступен — из копии мода)
+- 🇬🇧 "Update authors.json": the fresh trusted-authors list from ZombieBuddy's GitHub into `~/.zombie_buddy/authors.json` (from a mod copy if GitHub is unreachable)
+
 ## 1.6.1
 
 - 🇷🇺 «Моды на диске»: список модов сервера с размерами, удаление выбранных или всех (`Zomboid/mods` и Мастерская сервера), по желанию — и из списка модов мира

@@ -302,6 +302,28 @@
     <!-- ZB -->
     <section id="tab-zb" class="tab hidden">
       <div class="card">
+        <div class="row between wrap gap">
+          <h3>ZombieBuddy — версия и обновление</h3>
+          <div class="row gap wrap">
+            <button class="btn" id="zbuRefresh">Обновить</button>
+            <button class="btn primary" id="zbuDownload" title="Скачать последнюю версию предмета Мастерской 3619862853 через SteamCMD (анонимно)">Скачать последнюю версию</button>
+          </div>
+        </div>
+        <div class="muted small">ZombieBuddy — это агент, который сервер грузит при запуске (<code>ZombieBuddy.jar</code>, на Windows ещё <code>zbNative.dll</code>), и мод из Мастерской. Обновлять обе части нужно вместе и только при остановленном сервере.</div>
+        <div id="zbuInfo" class="small mt"></div>
+        <div id="zbuProgress" class="small"></div>
+        <div class="tablewrap mt"><table id="zbuTable" class="table"></table></div>
+        <div class="row gap wrap mt">
+          <label class="small"><input type="checkbox" id="zbuAgent" checked> агент сервера</label>
+          <label class="small"><input type="checkbox" id="zbuMod" checked> мод в Zomboid/mods</label>
+          <button class="btn primary" id="zbuInstall" disabled>Установить выбранную версию</button>
+        </div>
+        <div class="row between wrap gap mt">
+          <div class="small" id="zbuAuthors"></div>
+          <button class="btn sm" id="zbuAuthorsBtn" title="Скачать свежий список доверенных авторов Java-модов с GitHub ZombieBuddy">Обновить authors.json</button>
+        </div>
+      </div>
+      <div class="card">
         <h3>ZombieBuddy — одобрения Java-модов</h3>
         <div class="muted small" id="zbPath"></div>
         <div class="muted small">Общий файл для игры и сервера на этом ПК. После обновления мода его хэш меняется, и ZombieBuddy спросит снова.</div>

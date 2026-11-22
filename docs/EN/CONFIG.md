@@ -29,7 +29,7 @@ The file sits next to `pzpanel.jar`. You can also edit it on the "Panel" tab. Re
 | `pyramidZip` | auto | Path to the map's `pyramid.zip` if it was not found by itself |
 | `workshopDirs` | auto | Extra Workshop folders, separated by `;` |
 | `zbConfigDir` | `~/.zombie_buddy` | Where ZombieBuddy approvals live |
-| `steamcmd` | empty | Path to `steamcmd.sh`: needed by the "📌 Pin" button if the server has not downloaded the mod yet. On Windows it can be omitted: the panel looks for `PZPanel\steamcmd\steamcmd.exe` and `C:\steamcmd\steamcmd.exe`, and if neither exists it downloads SteamCMD itself |
+| `steamcmd` | empty | Path to `steamcmd.sh`: needed by the "📌 Pin" button and ZombieBuddy's "Download the latest version" if the server has not downloaded the mod yet. On Windows it can be omitted: the panel looks for `PZPanel\steamcmd\steamcmd.exe` and `C:\steamcmd\steamcmd.exe`, and if neither exists it downloads SteamCMD itself |
 | `steamcmdCache` | `/tmp/pzws` (Windows: `PZPanel\steamcmd_cache`) | Temporary `steamcmd` download folder (removed after pinning) |
 | `modArchiveTtlHours` | `24` | After how many hours a **single-mod** archive in `PZPanel/mod_archives/` is deleted (a full archive is always kept as one copy) |
 | `modUploadMaxMb` | `4096` | Maximum size of a mod zip uploaded on the "Mods" tab (MB). Temporary files live in `PZPanel/mod_uploads/` and are deleted after an hour |

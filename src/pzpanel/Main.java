@@ -40,7 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Main {
-   static final String VERSION = "1.6.1";
+   static final String VERSION = "1.6.2";
    private final Config cfg;
    private final ServerManager srv;
    private final Players players;
@@ -48,6 +48,7 @@ public final class Main {
    private final ModTools modTools;
    private final ModUpload modUpload;
    private final ModDisk modDisk;
+   private final ZbUpdater zbUpdater;
    private final Updater updater;
    private final Backups backups;
    private final Worlds worlds;
@@ -72,6 +73,7 @@ public final class Main {
       this.modUpload = new ModUpload(this.cfg, this.mods, this.srv);
       this.modDisk = new ModDisk(this.cfg, this.mods, this.srv);
       this.backups = new Backups(this.cfg, this.srv);
+      this.zbUpdater = new ZbUpdater(this.cfg, this.mods, this.srv, this.backups);
       this.worlds = new Worlds(this.cfg, this.srv, this.backups, () -> {
          this.worldSize = -1L;
          this.worldSizeAt = 0L;
@@ -498,6 +500,24 @@ public final class Main {
                json(var1, 200, Map.of("message", "Файл сохранён (копия прежней версии — в file_backups)"));
             } else {
                json(var1, 200, Map.of("path", var18.toString(), "exists", Files.exists(var18), "text", Files.exists(var18) ? Util.readText(var18) : ""));
+            }
+            break;
+         case "/api/zb/update":
+            json(var1, 200, this.zbUpdater.state());
+            break;
+         case "/api/zb/update/download":
+            requirePost(var5);
+            json(var1, 200, Map.of("message", this.zbUpdater.download()));
+            break;
+         case "/api/zb/authors":
+            requirePost(var5);
+            json(var1, 200, this.zbUpdater.updateAuthors(body(var1).path("force").asBoolean(false)));
+            break;
+         case "/api/zb/update/install":
+            requirePost(var5);
+            {
+               JsonNode b = body(var1);
+               json(var1, 200, this.zbUpdater.install(b.path("source").asText(), b.path("agent").asBoolean(true), b.path("mod").asBoolean(true)));
             }
             break;
          case "/api/zb":

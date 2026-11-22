@@ -72,6 +72,7 @@ input[type=checkbox]{width:auto;padding:0;accent-color:var(--accent)}
 .modlist .actions{flex:none;display:flex;gap:4px}
 .tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:8px;border:1px solid var(--line);color:var(--muted);margin-left:4px}
 .tag.java{color:var(--info);border-color:var(--info)}
+.tag.on{color:var(--accent);border-color:var(--accent)}
 .availlist{max-height:40vh;overflow:auto}
 .upmod{border-top:1px solid var(--line);padding:8px 0;font-size:13px}
 .upmod .warn{color:var(--warn,#d9a441)}

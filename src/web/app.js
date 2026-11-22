@@ -1105,6 +1105,47 @@ $('#fileReload').onclick = loadFile;
 $('#fileSave').onclick = () => confirm('Сохранить файл? Прежняя версия попадёт в file_backups.') && act(async () => { const r = await api('/api/file?name=' + $('#fileSel').value, { text: $('#fileText').value }); fileOrig = $('#fileText').value; return r; });
 loaders.files = () => { if ($('#fileText').value === fileOrig) loadFile(); };
 
+// ---------------- обновление ZombieBuddy ----------------
+let zbu = null, zbuSel = '';
+function zbuVer(x) { return x && x.version ? x.version : '?'; }
+function cmpVer(a, b) { const x = String(a || '0').split('.').map(Number), y = String(b || '0').split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; }
+async function loadZbu() {
+  try { zbu = await api('/api/zb/update'); } catch (e) { toast(e.message, true); return; }
+  const r = zbu, a = r.agent;
+  $('#zbuInfo').innerHTML = (a ? `Агент сервера: <b>${esc(zbuVer(a))}</b> <span class="muted">${esc(r.agentPath)} · ${fmtTime(a.time)}</span>` : '<span class="dead-txt">ZombieBuddy.jar сервера не найден</span> <span class="muted">(нет -javaagent в ProjectZomboid64.json и файла рядом с сервером)</span>')
+    + (r.windows ? (r.native ? ` · zbNative.dll <span class="muted">${fmtTime(r.native.time)}</span>` : ' · <span class="dead-txt">zbNative.dll не найден</span>') : '')
+    + (r.workshopUpdated ? `<br>Последнее обновление в Мастерской: <b>${fmtTime(r.workshopUpdated)}</b>` : '')
+    + (r.serverRunning ? '<br><span class="dead-txt">Сервер запущен — для установки остановите его.</span>' : '');
+  $('#zbuProgress').textContent = r.progress || '';
+  $('#zbuProgress').className = 'small' + (/^Ошибка/.test(r.progress) ? ' err' : '');
+  const newest = r.sources.reduce((m, s) => !m || cmpVer(s.version, m.version) > 0 ? s : m, null);
+  if (!r.sources.some(s => s.key === zbuSel)) zbuSel = newest ? newest.key : '';
+  $('#zbuTable').innerHTML = '<tr><th></th><th>Откуда</th><th>Версия</th><th>Файл от</th><th>SHA-256</th></tr>' + r.sources.map(s => `<tr><td><input type="radio" name="zbusrc" value="${esc(s.key)}"${s.key === zbuSel ? ' checked' : ''}></td><td>${esc(s.title)}<br><small class="muted">${esc(s.dir)}</small></td><td><b>${esc(zbuVer(s))}</b>${a && s.sha256 === a.sha256 ? ' <span class="tag">как у агента</span>' : a && cmpVer(s.version, a.version) > 0 ? ' <span class="tag on">новее агента</span>' : ''}</td><td>${fmtTime(s.time)}</td><td class="mono small">${esc(String(s.sha256 || '').slice(0, 12))}…</td></tr>`).join('')
+    + (r.sources.length ? '' : '<tr><td colspan="5" class="muted">Копий мода ZombieBuddy не найдено — нажмите «Скачать последнюю версию»</td></tr>');
+  const au = r.authors;
+  $('#zbuAuthors').innerHTML = 'authors.json (список авторов, чьи подписи Java-модов ZombieBuddy принимает): ' + (au ? (au.error ? '<span class="dead-txt">' + esc(au.error) + '</span>' : `<b>${esc(au.updatedAt || '?')}</b>, авторов: ${au.count}`) : '<span class="dead-txt">нет</span>') + ` <span class="muted">${esc(r.authorsPath)}</span>`;
+  $$('#zbuTable [name=zbusrc]').forEach(x => x.onchange = () => { zbuSel = x.value; zbuButtons(); });
+  $('#zbuMod').disabled = !r.localMod; if (!r.localMod) $('#zbuMod').checked = false;
+  $('#zbuAgent').disabled = !a; if (!a) $('#zbuAgent').checked = false;
+  zbuButtons();
+  if (r.busy) { clearTimeout(loadZbu._t); loadZbu._t = setTimeout(() => tab === 'zb' && loadZbu(), 1500); }
+}
+function zbuButtons() {
+  const r = zbu; if (!r) return;
+  $('#zbuDownload').disabled = r.busy;
+  $('#zbuInstall').disabled = r.busy || r.serverRunning || !zbuSel || (!$('#zbuAgent').checked && !$('#zbuMod').checked);
+}
+$('#zbuAgent').onchange = zbuButtons; $('#zbuMod').onchange = zbuButtons;
+$('#zbuRefresh').onclick = loadZbu;
+$('#zbuAuthorsBtn').onclick = () => act(async () => { const x = await api('/api/zb/authors', {}); await loadZbu(); return x; });
+$('#zbuDownload').onclick = () => act(async () => { const x = await api('/api/zb/update/download', {}); zbuSel = 'download'; setTimeout(loadZbu, 500); return x; });
+$('#zbuInstall').onclick = () => {
+  const s = zbu.sources.find(x => x.key === zbuSel); if (!s) return;
+  const what = [$('#zbuAgent').checked ? 'агент сервера' + (zbu.windows ? ' (ZombieBuddy.jar и zbNative.dll)' : ' (ZombieBuddy.jar)') : '', $('#zbuMod').checked && s.key !== 'local' ? 'мод в Zomboid/mods' : ''].filter(Boolean).join(' и ');
+  if (!confirm('Установить ZombieBuddy ' + zbuVer(s) + ' из «' + s.title + '»: ' + what + '?\nПрежние версии сохранятся (file_backups и mods_replaced).')) return;
+  act(async () => { const x = await api('/api/zb/update/install', { source: s.key, agent: $('#zbuAgent').checked, mod: $('#zbuMod').checked }); await loadZbu(); loadZb(); return x; });
+};
+
 // ---------------- ZombieBuddy ----------------
 async function loadZb() {
   try {
@@ -1116,7 +1157,7 @@ async function loadZb() {
     $$('#zbTable [data-zb]').forEach(b => b.onclick = () => act(async () => { const x = await api('/api/zb', { id: b.dataset.id, jar_hash: b.dataset.h, action: b.dataset.zb }); loadZb(); return x; }));
   } catch (e) { toast(e.message, true); }
 }
-loaders.zb = loadZb;
+loaders.zb = () => { loadZb(); loadZbu(); };
 
 // ---------------- worlds ----------------
 let wState = null;

@@ -37,6 +37,21 @@ The **"Mods on disk"** card → "Show": all the server's mods with sizes — `Zo
 
 The same card lists **old versions** from `Zomboid/mods_replaced` (archive uploads put them there): "Restore" puts that version in place of the current one (the current one goes to `mods_replaced`), "Delete" removes it for good. Versions older than `modReplacedKeepDays` days (30 by default, 0 — forever) are deleted automatically.
 
+## Updating ZombieBuddy
+
+The **ZombieBuddy** tab, "Version and update" card. ZombieBuddy has two parts that must be updated together:
+
+- **the server agent** — `ZombieBuddy.jar` the server loads at startup. The panel finds it via `-javaagent:` in `ProjectZomboid64.json` (Linux) or takes the file in the server folder (Windows, `-agentlib:zbNative`); on Windows `zbNative.dll` next to it is updated too;
+- **the mod** (Workshop item 3619862853) — the frozen copy in `Zomboid/mods/ZombieBuddy`.
+
+The panel shows the versions of the agent and of every mod copy (downloaded by the panel, in `Zomboid/mods`, in the server's and Steam client's Workshop) and the date of the last Workshop update. **"Download the latest version"** downloads the item via SteamCMD anonymously (on Windows the panel downloads SteamCMD itself if needed, on Linux it uses the `steamcmd` option, as "📌 Pin" does). Then pick a copy → **"Install the selected version"** (only while the server is stopped). The old `ZombieBuddy.jar` and `zbNative.dll` are kept in `PZPanel/file_backups`, the old mod in `Zomboid/mods_replaced`. The new version is approved in `mod_approvals.json` right away.
+
+Versions from ZombieBuddy's GitHub that are not on the Workshop yet: upload the mod zip via "Upload a mod as an archive" on the "Mods" tab, then pick "Mod in Zomboid/mods" here and install the agent from it.
+
+**"Update authors.json"** — the list of authors whose Java mod signatures ZombieBuddy accepts. The panel takes the fresh file from ZombieBuddy's GitHub (from a mod copy if GitHub is unreachable) and puts it into `~/.zombie_buddy/authors.json` (next to `mod_approvals.json`), only if it is newer than the current one. ZombieBuddy checks the file's signature itself.
+
+After the update, players need the same ZombieBuddy version: a new mod archive and an update via the ZombieBuddy installer.
+
 ## Mod auto-sorter
 
 ![Mod auto-sorter](../screenshots/sorter_en.png)
